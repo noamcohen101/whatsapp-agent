@@ -12,3 +12,5 @@ qr.json
 qr.png
 .wa-state.json
 .render_service.json
+google_client_secret.json
+token.json
