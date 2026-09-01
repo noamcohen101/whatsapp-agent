@@ -10,3 +10,5 @@ venv/
 .DS_Store
 qr.json
 qr.png
+.wa-state.json
+.render_service.json

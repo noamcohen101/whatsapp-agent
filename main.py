@@ -63,24 +63,32 @@ def _extract_audio_url(message_data: dict) -> tuple[str, str] | None:
 async def webhook(request: Request):
     body = await request.json()
 
-    if body.get("typeWebhook") != "incomingMessageReceived":
+    tw = body.get("typeWebhook")
+    if tw != "incomingMessageReceived":
+        print(f"[webhook] skip: typeWebhook={tw}")
         return {"ok": True, "skipped": "not an incoming message"}
 
     id_message = body.get("idMessage", "")
     if database.already_processed(id_message):
+        print(f"[webhook] skip: duplicate {id_message}")
         return {"ok": True, "skipped": "duplicate"}
 
-    sender_data = body.get("sender_data") or body.get("senderData", {})
+    sender_data = body.get("senderData") or body.get("sender_data") or {}
     chat_id = sender_data.get("chatId", "")
-    sender = (sender_data.get("sender") or "").split("@")[0]
+    sender = (sender_data.get("sender") or sender_data.get("chatId") or "").split("@")[0]
+    message_data = body.get("messageData", {})
+    print(
+        f"[webhook] in: sender={sender} chat={chat_id} "
+        f"type={message_data.get('typeMessage')} whitelist={_WHITELIST}"
+    )
 
     if chat_id.endswith("@g.us") and not _ANSWER_GROUPS:
         return {"ok": True, "skipped": "group"}
 
     if sender not in _WHITELIST:
+        print(f"[webhook] skip: {sender} not in whitelist")
         return {"ok": True, "skipped": "not whitelisted"}
 
-    message_data = body.get("messageData", {})
     text = _extract_text(message_data)
 
     if not text:
@@ -102,8 +110,10 @@ async def webhook(request: Request):
                 return {"ok": True, "handled": "audio-untranscribed"}
 
     if not text:
+        print(f"[webhook] skip: unsupported type {message_data.get('typeMessage')}")
         return {"ok": True, "skipped": f"unsupported type {message_data.get('typeMessage')}"}
 
+    print(f"[webhook] handling: {text[:80]!r}")
     try:
         reply = agent.handle_message(chat_id, sender, text)
     except Exception as e:  # noqa: BLE001
