@@ -1,0 +1,12 @@
+.env
+__pycache__/
+*.pyc
+*.db
+*.sqlite
+*.sqlite3
+data/
+.venv/
+venv/
+.DS_Store
+qr.json
+qr.png
