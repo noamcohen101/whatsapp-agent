@@ -33,6 +33,11 @@ TRANSCRIPTION_PROVIDER = os.getenv("TRANSCRIPTION_PROVIDER", "groq")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
 GROQ_TRANSCRIBE_MODEL = os.getenv("GROQ_TRANSCRIBE_MODEL", "whisper-large-v3-turbo")
 
+# --- Google (Calendar + Gmail) ---
+GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "")
+GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "")
+GOOGLE_REFRESH_TOKEN = os.getenv("GOOGLE_REFRESH_TOKEN", "")
+
 # --- Bot ---
 BOT_OWNER_PHONE = _require("BOT_OWNER_PHONE").lstrip("+")
 BOT_TIMEZONE = os.getenv("BOT_TIMEZONE", "Asia/Jerusalem")
