@@ -253,6 +253,41 @@ def create_product(
     )
 
 
+def duplicate_product(
+    source_product_id: str,
+    new_name: str,
+    price: str = "",
+    description: str = "",
+    sku: str = "",
+) -> str:
+    """Clone an existing product (images, category, price, attributes) with a new name."""
+    src = _get(f"products/{source_product_id}")
+    body: dict = {
+        "name": new_name,
+        "type": src.get("type", "simple"),
+        "status": "draft",
+        "regular_price": str(price) if price else src.get("regular_price", ""),
+        "description": description or src.get("description", ""),
+        "short_description": (description or src.get("short_description", ""))[:400],
+        "categories": [{"id": c["id"]} for c in src.get("categories", [])],
+        "tags": [{"id": t["id"]} for t in src.get("tags", [])],
+        "images": [{"src": im["src"]} for im in src.get("images", []) if im.get("src")],
+        "attributes": src.get("attributes", []),
+        "weight": src.get("weight", ""),
+        "dimensions": src.get("dimensions", {}),
+    }
+    if sku:
+        body["sku"] = sku
+    p = _post("products", body)
+    return (
+        f"שוכפל מ-[{source_product_id}] '{src.get('name')}'\n"
+        f"מוצר חדש (טיוטה) [{p['id']}]: {p['name']} · {p.get('regular_price')}₪\n"
+        f"ירש {len(body['images'])} תמונות ו-{len(body['categories'])} קטגוריות.\n"
+        f"עריכה: {p.get('permalink','')}\n"
+        f"אמור לי לפרסם כשמוכן."
+    )
+
+
 def sales_summary(period: str = "week") -> str:
     data = _get("reports/sales", {"period": period})
     if not data:
@@ -326,12 +361,20 @@ TOOLS = {
         ["product_id"]), "fn": update_product},
     "woo_create_product": {**_sch(
         "woo_create_product",
-        "יוצר מוצר חדש ב-Israstore (כטיוטה, נועם מפרסם). דורש אישור מפורש מנועם — הצג לו שם, מחיר, תיאור וקטגוריה לפני יצירה.",
+        "יוצר מוצר חדש ב-Israstore מאפס (כטיוטה, נועם מפרסם). דורש אישור מפורש מנועם.",
         {"name": {"type": "string"}, "price": {"type": "string"},
          "description": {"type": "string"}, "category": {"type": "string"},
          "stock_quantity": {"type": "string"}, "image_url": {"type": "string"},
          "sku": {"type": "string"}},
         ["name", "price"]), "fn": create_product},
+    "woo_duplicate_product": {**_sch(
+        "woo_duplicate_product",
+        "משכפל מוצר קיים (יורש תמונות, קטגוריה, מחיר, מאפיינים) ומשנה שם/מחיר/תיאור. "
+        "הדרך הקלה להוסיף וריאציות (למשל אותה חולצה עם פאץ' ליגה אחר). נוצר כטיוטה. דורש אישור מנועם.",
+        {"source_product_id": {"type": "string", "description": "id של המוצר לשכפול"},
+         "new_name": {"type": "string", "description": "השם החדש"},
+         "price": {"type": "string"}, "description": {"type": "string"}, "sku": {"type": "string"}},
+        ["source_product_id", "new_name"]), "fn": duplicate_product},
     "woo_sales_summary": {**_sch("woo_sales_summary", "סיכום מכירות. period: week/month/last_month/year.",
         {"period": {"type": "string"}}, []), "fn": sales_summary},
     "woo_list_customers": {**_sch("woo_list_customers", "רשימת לקוחות עם מספר הזמנות וסכום שהוציאו.",
