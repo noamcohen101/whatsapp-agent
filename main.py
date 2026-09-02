@@ -134,6 +134,29 @@ async def webhook(request: Request):
     text = _extract_text(message_data)
     images = _extract_images(message_data)
 
+    if not text and message_data.get("typeMessage") == "documentMessage":
+        fm = message_data.get("fileMessageData", {})
+        url = fm.get("downloadUrl")
+        fname = fm.get("fileName") or "document"
+        caption = fm.get("caption", "")
+        if url:
+            try:
+                import documents
+
+                extracted = documents.extract(download_file(url), fname, fm.get("mimeType", ""))
+            except Exception as e:  # noqa: BLE001
+                extracted = None
+                print(f"[webhook] document handling failed: {e}")
+            if extracted:
+                text = f"[מסמך: {fname}]\n{extracted}\n\n{caption}".strip()
+            else:
+                send_reply(
+                    chat_id,
+                    f"קיבלתי את הקובץ '{fname}' אבל לא הצלחתי לקרוא אותו מלך. "
+                    "אני יודע לקרוא PDF, Excel, Word, CSV וטקסט.",
+                )
+                return {"ok": True, "handled": "document-unreadable"}
+
     if images:
         caption = message_data.get("fileMessageData", {}).get("caption", "")
         try:
