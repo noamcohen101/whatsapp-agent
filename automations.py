@@ -86,6 +86,40 @@ def reputation_scan() -> None:
     send_to_phone(BOT_OWNER_PHONE, f"📣 *מוניטין*\n\n{text}")
 
 
+def inbox_watch() -> None:
+    """Every ~30 min: surface a genuinely important new email that needs action."""
+    text = _ask_agent(
+        "[אוטומציה — מעקב אינבוקס] חפש מיילים לא-נקראים מ-3 השעות האחרונות "
+        "(search_emails 'is:unread newer_than:1d'). "
+        "האם נכנס משהו שבאמת דורש תשומת לב עכשיו — לקוח שמחכה, ספק, PayPal/אשראי, "
+        "משהו רשמי, דדליין? אם כן — משפט-שניים על מה זה ומה הצעד. "
+        "אם רק שיווק/ספאם/כלום דחוף — החזר בדיוק SKIP. קצר מאוד."
+    )
+    if text.strip().upper().startswith("SKIP"):
+        return
+    from notify import push
+
+    push("urgent", "מייל שדורש טיפול", text)
+
+
+def follow_up_sweep() -> None:
+    import database
+
+    tasks = database.task_list("open") + database.task_list("waiting")
+    if not tasks:
+        return
+    text = _ask_agent(
+        "[אוטומציה — רדיפה] עבור על המשימות הפתוחות (list_tasks). "
+        "אילו תקועות — עברו הדדליין, או ממתינות למישהו יותר מיומיים, או לא זזו הרבה זמן? "
+        "לכל אחת: מה הצעד כדי לזוז. אם הכל בשליטה — החזר בדיוק SKIP. " + _FMT
+    )
+    if text.strip().upper().startswith("SKIP"):
+        return
+    from notify import push
+
+    push("needs_decision", "משימות תקועות", text)
+
+
 def business_health_check() -> None:
     text = _ask_agent(
         "[אוטומציה — בריאות עסק] בדוק שהכל תקין ב-Israstore: "
@@ -191,6 +225,18 @@ def register(scheduler) -> None:
         content_calendar,
         CronTrigger(day_of_week="sun", hour=10, minute=0, timezone=BOT_TIMEZONE),
         id="content_calendar", replace_existing=True, misfire_grace_time=7200,
+    )
+    # inbox watch — hourly during waking hours (keeps LLM cost sane)
+    scheduler.add_job(
+        inbox_watch,
+        CronTrigger(minute=5, hour="8-22", timezone=BOT_TIMEZONE),
+        id="inbox_watch", replace_existing=True, misfire_grace_time=1800,
+    )
+    # follow-up sweep — twice a day
+    scheduler.add_job(
+        follow_up_sweep,
+        CronTrigger(hour="10,18", minute=45, timezone=BOT_TIMEZONE),
+        id="follow_up_sweep", replace_existing=True, misfire_grace_time=3600,
     )
     # reputation scan — once a day
     scheduler.add_job(
