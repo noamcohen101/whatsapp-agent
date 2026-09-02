@@ -43,6 +43,26 @@ def evening_summary() -> None:
     send_to_phone(BOT_OWNER_PHONE, f"🌙 *סיכום יום*\n\n{text}")
 
 
+def competitor_price_watch() -> None:
+    from tools.competitors import israstore_top_sellers
+
+    try:
+        tops = israstore_top_sellers(4)
+    except Exception:  # noqa: BLE001
+        tops = []
+    if not tops:
+        return
+    text = _ask_agent(
+        "[אוטומציה — ריגול מחירים] השווה מחירים מול המתחרים "
+        f"(compare_competitor_prices) עבור המוצרים הכי נמכרים: {', '.join(tops)}. "
+        "דווח רק על מוצרים שבהם יש פער מחיר משמעותי (Israstore יקר/זול ב-15%+ ממתחרה), "
+        "עם המלצת מהלך. אם אין פערים משמעותיים — החזר בדיוק SKIP. " + _FMT
+    )
+    if text.strip().upper().startswith("SKIP"):
+        return
+    send_to_phone(BOT_OWNER_PHONE, f"🔍 *ריגול מחירים*\n\n{text}")
+
+
 def abandoned_carts_check() -> None:
     text = _ask_agent(
         "[אוטומציה — עגלות נטושות] בדוק עגלות נטושות (woo_abandoned_checkouts). "
@@ -71,4 +91,10 @@ def register(scheduler) -> None:
         abandoned_carts_check,
         CronTrigger(hour="12,17,21", minute=30, timezone=BOT_TIMEZONE),
         id="abandoned_carts", replace_existing=True, misfire_grace_time=3600,
+    )
+    # competitor price watch — once a day
+    scheduler.add_job(
+        competitor_price_watch,
+        CronTrigger(hour=11, minute=0, timezone=BOT_TIMEZONE),
+        id="competitor_prices", replace_existing=True, misfire_grace_time=7200,
     )

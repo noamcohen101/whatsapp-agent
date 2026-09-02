@@ -51,3 +51,9 @@ if "whatsapp_groups" in SPEC.get("tools", []):
     from tools.whatsapp_groups import TOOLS as _group_tools
 
     _register(_group_tools)
+
+# --- Competitor price intelligence ---
+if "woocommerce" in SPEC.get("tools", []):
+    from tools.competitors import TOOLS as _competitor_tools
+
+    _register(_competitor_tools)

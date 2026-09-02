@@ -185,7 +185,12 @@ def get_product(product_id: str) -> str:
 
 
 def update_product(
-    product_id: str, price: str = "", stock_quantity: str = "", sale_price: str = ""
+    product_id: str,
+    price: str = "",
+    stock_quantity: str = "",
+    sale_price: str = "",
+    status: str = "",
+    description: str = "",
 ) -> str:
     body: dict = {}
     if price:
@@ -195,10 +200,57 @@ def update_product(
     if stock_quantity != "":
         body["stock_quantity"] = int(stock_quantity)
         body["manage_stock"] = True
+    if status:
+        body["status"] = status  # 'publish' / 'draft' / 'private'
+    if description:
+        body["description"] = description
     if not body:
         return "לא צוין מה לעדכן."
     p = _put(f"products/{product_id}", body)
-    return f"עודכן [{p['id']}] {p['name']}: מחיר {p.get('price')}₪, מלאי {p.get('stock_quantity')}"
+    return (
+        f"עודכן [{p['id']}] {p['name']}: מחיר {p.get('price')}₪, "
+        f"מלאי {p.get('stock_quantity')}, סטטוס {p.get('status')}"
+    )
+
+
+def create_product(
+    name: str,
+    price: str,
+    description: str = "",
+    category: str = "",
+    stock_quantity: str = "",
+    image_url: str = "",
+    sku: str = "",
+) -> str:
+    body: dict = {
+        "name": name,
+        "type": "simple",
+        "regular_price": str(price),
+        "status": "draft",  # created as draft — Noam publishes when ready
+    }
+    if description:
+        body["description"] = description
+        body["short_description"] = description[:300]
+    if sku:
+        body["sku"] = sku
+    if stock_quantity != "":
+        body["manage_stock"] = True
+        body["stock_quantity"] = int(stock_quantity)
+    if image_url:
+        body["images"] = [{"src": image_url}]
+    if category:
+        cats = _get("products/categories", {"search": category, "per_page": 1})
+        if cats:
+            body["categories"] = [{"id": cats[0]["id"]}]
+        else:
+            new_cat = _post("products/categories", {"name": category})
+            body["categories"] = [{"id": new_cat["id"]}]
+    p = _post("products", body)
+    return (
+        f"נוצר מוצר כטיוטה [{p['id']}]: {p['name']} · {p.get('regular_price')}₪\n"
+        f"קישור עריכה: {p.get('permalink','')}\n"
+        f"הוא במצב 'טיוטה' — תגיד לי לפרסם אותו כשמוכן (woo_update_product עם status)."
+    )
 
 
 def sales_summary(period: str = "week") -> str:
@@ -266,10 +318,20 @@ TOOLS = {
         {"product_id": {"type": "string"}}, ["product_id"]), "fn": get_product},
     "woo_update_product": {**_sch(
         "woo_update_product",
-        "מעדכן מחיר/מלאי/מחיר מבצע של מוצר. דורש אישור מפורש מנועם לפני קריאה.",
+        "מעדכן מוצר קיים: מחיר, מלאי, מחיר מבצע, תיאור, או status (publish/draft). דורש אישור מפורש מנועם.",
         {"product_id": {"type": "string"}, "price": {"type": "string"},
-         "stock_quantity": {"type": "string"}, "sale_price": {"type": "string"}},
+         "stock_quantity": {"type": "string"}, "sale_price": {"type": "string"},
+         "status": {"type": "string", "description": "publish / draft / private"},
+         "description": {"type": "string"}},
         ["product_id"]), "fn": update_product},
+    "woo_create_product": {**_sch(
+        "woo_create_product",
+        "יוצר מוצר חדש ב-Israstore (כטיוטה, נועם מפרסם). דורש אישור מפורש מנועם — הצג לו שם, מחיר, תיאור וקטגוריה לפני יצירה.",
+        {"name": {"type": "string"}, "price": {"type": "string"},
+         "description": {"type": "string"}, "category": {"type": "string"},
+         "stock_quantity": {"type": "string"}, "image_url": {"type": "string"},
+         "sku": {"type": "string"}},
+        ["name", "price"]), "fn": create_product},
     "woo_sales_summary": {**_sch("woo_sales_summary", "סיכום מכירות. period: week/month/last_month/year.",
         {"period": {"type": "string"}}, []), "fn": sales_summary},
     "woo_list_customers": {**_sch("woo_list_customers", "רשימת לקוחות עם מספר הזמנות וסכום שהוציאו.",
