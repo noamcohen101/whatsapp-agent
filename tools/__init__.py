@@ -100,3 +100,8 @@ if "gmail" in SPEC.get("tools", []):
     from tools.subscriptions import TOOLS as _sub_tools
 
     _register(_sub_tools)
+
+# --- LLM cost report (always on) ---
+from tools.cost import TOOLS as _cost_tools
+
+_register(_cost_tools)

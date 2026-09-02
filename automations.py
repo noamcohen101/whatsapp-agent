@@ -68,6 +68,12 @@ def meeting_prep() -> None:
     send_to_phone(BOT_OWNER_PHONE, f"📋 *הכנה לפגישות מחר*\n\n{text}")
 
 
+def cost_report() -> None:
+    from tools.cost import llm_cost
+
+    send_to_phone(BOT_OWNER_PHONE, f"💸 *עלות הבוט השבוע*\n\n{llm_cost(7)}")
+
+
 def weekly_review() -> None:
     text = _ask_agent(
         "[אוטומציה — סקירה שבועית] סכם לי את השבוע: מה נסגר, קצב הכנסות מול יעד (revenue_pace), "
@@ -277,6 +283,12 @@ def register(scheduler) -> None:
         content_calendar,
         CronTrigger(day_of_week="sun", hour=10, minute=0, timezone=BOT_TIMEZONE),
         id="content_calendar", replace_existing=True, misfire_grace_time=7200,
+    )
+    # bot cost report — Sunday evening (no LLM call, just DB math)
+    scheduler.add_job(
+        cost_report,
+        CronTrigger(day_of_week="sun", hour=20, minute=0, timezone=BOT_TIMEZONE),
+        id="cost_report", replace_existing=True, misfire_grace_time=7200,
     )
     # inbox watch — 3x/day
     scheduler.add_job(

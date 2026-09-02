@@ -57,6 +57,17 @@ def init_db() -> None:
         )
         cur.execute(
             """
+            CREATE TABLE IF NOT EXISTS llm_usage (
+                id            BIGSERIAL PRIMARY KEY,
+                model         TEXT NOT NULL,
+                input_tokens  INTEGER DEFAULT 0,
+                output_tokens INTEGER DEFAULT 0,
+                created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+            """
+        )
+        cur.execute(
+            """
             CREATE TABLE IF NOT EXISTS audit (
                 id         BIGSERIAL PRIMARY KEY,
                 actor      TEXT DEFAULT 'bot',
@@ -216,6 +227,27 @@ def setting_get(key: str, default: str = "") -> str:
         cur.execute("SELECT value FROM settings WHERE key = %s", (key,))
         row = cur.fetchone()
         return row[0] if row else default
+
+
+def usage_log(model: str, input_tokens: int, output_tokens: int) -> None:
+    try:
+        with _conn() as c, c.cursor() as cur:
+            cur.execute(
+                "INSERT INTO llm_usage (model, input_tokens, output_tokens) VALUES (%s,%s,%s)",
+                (model, input_tokens, output_tokens),
+            )
+    except Exception as e:  # noqa: BLE001
+        print(f"[usage] log failed: {e}")
+
+
+def usage_since(days: int) -> list[dict]:
+    with _conn() as c, c.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+        cur.execute(
+            "SELECT model, SUM(input_tokens) in_tok, SUM(output_tokens) out_tok, COUNT(*) calls "
+            "FROM llm_usage WHERE created_at > NOW() - (%s || ' days')::interval GROUP BY model",
+            (days,),
+        )
+        return [dict(r) for r in cur.fetchall()]
 
 
 def settings_all() -> dict:

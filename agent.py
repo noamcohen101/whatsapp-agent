@@ -131,6 +131,12 @@ def handle_message(
             kwargs["tools"] = tools
 
         resp = _client.messages.create(**kwargs)
+        try:
+            database.usage_log(
+                model, resp.usage.input_tokens, resp.usage.output_tokens
+            )
+        except Exception:  # noqa: BLE001
+            pass
 
         tool_uses = [b for b in resp.content if b.type == "tool_use"]
         text_blocks = [b.text for b in resp.content if b.type == "text"]
