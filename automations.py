@@ -182,6 +182,33 @@ def shipment_updates() -> None:
     send_to_phone(BOT_OWNER_PHONE, f"📦 *עדכוני משלוחים*\n\n{text}")
 
 
+def failed_payment_check() -> None:
+    text = _ask_agent(
+        "[אוטומציה — תשלומים שנכשלו] הרץ woo_failed_payments (3 ימים). "
+        "אלה לקוחות שרצו לקנות והכרטיס נדחה. דווח לי (נועם בלבד) על הרשימה: מי, מה, כמה, מתי. "
+        "אל תיצור קשר עם הלקוח — רק דיווח לי. אם אין — החזר בדיוק SKIP. " + _FMT
+    )
+    if text.strip().upper().startswith("SKIP"):
+        return
+    from notify import push
+
+    push("needs_decision", "תשלומים שנכשלו", text)
+
+
+def kit_radar() -> None:
+    text = _ask_agent(
+        "[אוטומציה — ראדאר מדים] חפש (web_search) מדים/חולצות כדורגל חדשים שהושקו "
+        "בשבועיים האחרונים — קבוצות גדולות (ריאל, ברצלונה, מנצ'סטר, סיטי, ליברפול, PSG, "
+        "באיירן, יובנטוס), נבחרות, וקבוצות ישראליות (מכבי/הפועל). "
+        "לכל מדים חדשים שמצאת: בדוק אם Israstore כבר מוכר אותם (woo_list_products). "
+        "אם לא — זו הזדמנות: תגיד לי איזה מדים, איזו קבוצה, ולהוסיף מהר. "
+        "אם אין מדים חדשים / הכל כבר בחנות — החזר בדיוק SKIP. " + _FMT
+    )
+    if text.strip().upper().startswith("SKIP"):
+        return
+    send_to_phone(BOT_OWNER_PHONE, f"👕 *ראדאר מדים חדשים*\n\n{text}")
+
+
 def abandoned_carts_check() -> None:
     text = _ask_agent(
         "[אוטומציה — עגלות נטושות] בדוק עגלות נטושות (woo_abandoned_checkouts) — הזמנות שלא שולמו = הכנסה שאבדה. "
@@ -214,6 +241,18 @@ def register(scheduler) -> None:
         abandoned_carts_check,
         CronTrigger(hour=18, minute=0, timezone=BOT_TIMEZONE),
         id="abandoned_carts", replace_existing=True, misfire_grace_time=3600,
+    )
+    # failed payment check — twice a day
+    scheduler.add_job(
+        failed_payment_check,
+        CronTrigger(hour="13,20", minute=0, timezone=BOT_TIMEZONE),
+        id="failed_payments", replace_existing=True, misfire_grace_time=3600,
+    )
+    # new kit radar — twice a week
+    scheduler.add_job(
+        kit_radar,
+        CronTrigger(day_of_week="mon,thu", hour=12, minute=0, timezone=BOT_TIMEZONE),
+        id="kit_radar", replace_existing=True, misfire_grace_time=7200,
     )
     # competitor price watch — once a week (Sunday)
     scheduler.add_job(
