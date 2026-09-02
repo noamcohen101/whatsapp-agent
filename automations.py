@@ -31,7 +31,7 @@ _FMT = (
 def morning_brief() -> None:
     text = _ask_agent(
         "[אוטומציה — בריף בוקר] עבור לבד על: היומן היום, מיילים חשובים שנכנסו "
-        "(לא ספאם/שיווק), הזמנות pending ומלאי נמוך ב-Israstore, ודברים פתוחים בזיכרון. "
+        "(לא ספאם/שיווק), הזמנות pending ב-Israstore, קצב הכנסות מול היעד (revenue_pace), ודברים פתוחים בזיכרון. "
         "תן: מה חייב לקרות היום, מה כדאי לדחות, על מה צריך החלטה ממני. " + _FMT
     )
     send_to_phone(BOT_OWNER_PHONE, f"☀️ *בריף בוקר*\n\n{text}")
@@ -48,7 +48,7 @@ def evening_summary() -> None:
 def content_calendar() -> None:
     text = _ask_agent(
         "[אוטומציה — לוח תוכן שבועי] חפש (web_search) את משחקי הכדורגל הגדולים השבוע "
-        "(ליגות מובילות, צ'מפיונס, נבחרות, דרבי). בדוק אילו חולצות רלוונטיות במלאי ב-Israstore. "
+        "(ליגות מובילות, צ'מפיונס, נבחרות, דרבי). בדוק אילו חולצות רלוונטיות נמכרות ב-Israstore. "
         "הצע לוח תוכן לשבוע: אילו פוסטים/סטוריז, מתי (סביב המשחקים), איזו חולצה לדחוף בכל אחד, "
         "וזווית קצרה לכל פוסט. אם אין משחקים בולטים — הצע 2-3 רעיונות כלליים. " + _FMT
     )
@@ -70,7 +70,8 @@ def meeting_prep() -> None:
 
 def weekly_review() -> None:
     text = _ask_agent(
-        "[אוטומציה — סקירה שבועית] סכם לי את השבוע: מה נסגר (משימות done, הזמנות), "
+        "[אוטומציה — סקירה שבועית] סכם לי את השבוע: מה נסגר, קצב הכנסות מול יעד (revenue_pace), "
+        "פילוח לקוחות קצר (customer_segments — VIP חדשים? רדומים חדשים?), "
         "מה נשאר פתוח וחשוב (list_tasks), מה נדחה שוב ושוב, ומה 3 הדברים הכי חשובים לשבוע הבא. "
         "אם אתה רואה דפוס (למשל 'שוב דחית החלטת מחיר') — תגיד לי אותו ישר. " + _FMT
     )
@@ -122,12 +123,22 @@ def follow_up_sweep() -> None:
     push("needs_decision", "משימות תקועות", text)
 
 
+def subscription_review() -> None:
+    text = _ask_agent(
+        "[אוטומציה — מנויים] הרץ scan_subscriptions. דווח לי: אילו חיובים חוזרים כל חודש, "
+        "יש כפילויות, מה מתחדש בקרוב, ומה כדאי לבטל. אם לא מצאת כלום חדש מאז הפעם הקודמת — SKIP. " + _FMT
+    )
+    if text.strip().upper().startswith("SKIP"):
+        return
+    send_to_phone(BOT_OWNER_PHONE, f"💳 *מנויים וחיובים חוזרים*\n\n{text}")
+
+
 def business_health_check() -> None:
     text = _ask_agent(
         "[אוטומציה — בריאות עסק] בדוק שהכל תקין ב-Israstore: "
         "1) fetch_page על https://israstore.shop — האתר עולה ותקין? "
         "2) woo_orders_overview — יש קפיצה חריגה ב-failed/cancelled? "
-        "3) woo_list_products low_stock_only=true — מלאי קריטי? "
+        "3) revenue_pace — האם אנחנו בקצב מול היעד החודשי? "
         "4) הזמנות pending ישנות (מעל יומיים)? "
         "5) מיילים מ-PayPal/אשראי/ספק ב-24 שעות אחרונות שדורשים טיפול? "
         "החזר: '✅ הכל תקין' אם אין בעיות, אחרת רשימת הבעיות לפי דחיפות. " + _FMT
@@ -173,7 +184,7 @@ def shipment_updates() -> None:
 
 def abandoned_carts_check() -> None:
     text = _ask_agent(
-        "[אוטומציה — עגלות נטושות] בדוק עגלות נטושות (woo_abandoned_checkouts). "
+        "[אוטומציה — עגלות נטושות] בדוק עגלות נטושות (woo_abandoned_checkouts) — הזמנות שלא שולמו = הכנסה שאבדה. "
         "אם אין — החזר בדיוק SKIP. "
         "אם יש — דווח לי (נועם בלבד) על הרשימה: מי, מה בעגלה, כמה זמן. "
         "אל תכין ואל תשלח שום הודעה ללקוח — הבוט לא יוזם קשר. " + _FMT
@@ -251,4 +262,10 @@ def register(scheduler) -> None:
         meeting_prep,
         CronTrigger(hour=20, minute=30, timezone=BOT_TIMEZONE),
         id="meeting_prep", replace_existing=True, misfire_grace_time=3600,
+    )
+    # subscription review — 1st of the month
+    scheduler.add_job(
+        subscription_review,
+        CronTrigger(day=1, hour=12, minute=0, timezone=BOT_TIMEZONE),
+        id="subscription_review", replace_existing=True, misfire_grace_time=86400,
     )

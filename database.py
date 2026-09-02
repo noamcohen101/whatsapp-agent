@@ -53,6 +53,9 @@ def init_db() -> None:
             """
         )
         cur.execute(
+            "CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)"
+        )
+        cur.execute(
             """
             CREATE TABLE IF NOT EXISTS audit (
                 id         BIGSERIAL PRIMARY KEY,
@@ -197,6 +200,22 @@ def task_update(task_id: int, **fields) -> bool:
             [*sets.values(), task_id],
         )
         return cur.rowcount > 0
+
+
+def setting_set(key: str, value: str) -> None:
+    with _conn() as c, c.cursor() as cur:
+        cur.execute(
+            "INSERT INTO settings (key, value) VALUES (%s,%s) "
+            "ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value",
+            (key, value),
+        )
+
+
+def setting_get(key: str, default: str = "") -> str:
+    with _conn() as c, c.cursor() as cur:
+        cur.execute("SELECT value FROM settings WHERE key = %s", (key,))
+        row = cur.fetchone()
+        return row[0] if row else default
 
 
 def audit_log(action: str, detail: str = "", context: str = "private", actor: str = "bot") -> None:

@@ -88,3 +88,15 @@ if "woocommerce" in SPEC.get("tools", []):
     from tools.shipments import TOOLS as _shipment_tools
 
     _register(_shipment_tools)
+
+# --- Growth: revenue pace + customer segments ---
+if "woocommerce" in SPEC.get("tools", []):
+    from tools.growth import TOOLS as _growth_tools
+
+    _register(_growth_tools)
+
+# --- Subscription / recurring-charge watch ---
+if "gmail" in SPEC.get("tools", []):
+    from tools.subscriptions import TOOLS as _sub_tools
+
+    _register(_sub_tools)
