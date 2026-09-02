@@ -24,11 +24,11 @@ GREEN_API_INSTANCE = _require("GREEN_API_INSTANCE")
 GREEN_API_TOKEN = _require("GREEN_API_TOKEN")
 
 # --- LLM ---
-LLM_PROVIDER = os.getenv("LLM_PROVIDER", "anthropic")
-# Sonnet — strong Hebrew + reasoning. Worth the extra cost for a personal assistant.
-LLM_MODEL = os.getenv("LLM_MODEL", "claude-sonnet-4-5")
-LLM_VISION_MODEL = os.getenv("LLM_VISION_MODEL", "claude-sonnet-4-5")
-ANTHROPIC_API_KEY = _require("ANTHROPIC_API_KEY")
+LLM_PROVIDER = os.getenv("LLM_PROVIDER", "gemini")
+LLM_MODEL = os.getenv("LLM_MODEL", "gemini-3.6-flash")
+LLM_VISION_MODEL = os.getenv("LLM_VISION_MODEL", "gemini-3.6-flash")
+GEMINI_API_KEY = _require("GEMINI_API_KEY")
+ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 
 # --- Transcription (voice messages) ---
 TRANSCRIPTION_PROVIDER = os.getenv("TRANSCRIPTION_PROVIDER", "groq")

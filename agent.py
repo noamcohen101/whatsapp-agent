@@ -1,37 +1,37 @@
-"""LLM call + tool-calling loop (Anthropic). One entry point: handle_message()."""
-from anthropic import Anthropic
+"""LLM call + tool-calling loop (Google Gemini). One entry point: handle_message()."""
+from google import genai
+from google.genai import types
 
-from config import ANTHROPIC_API_KEY, LLM_MODEL, LLM_VISION_MODEL, SPEC
 import database
+from config import GEMINI_API_KEY, LLM_MODEL, LLM_VISION_MODEL, SPEC
 from prompt import build_system_prompt
 from tools import TOOL_REGISTRY
 
-_client = Anthropic(api_key=ANTHROPIC_API_KEY)
-_MAX_TOOL_ITERS = 5
+_client = genai.Client(api_key=GEMINI_API_KEY)
+_MAX_TOOL_ITERS = 6
 
 # In a group chat the bot is a shared assistant — only these tools are exposed.
-# Everything personal to Noam (calendar, gmail, personal reminders) and every
-# write action (woo_update_product, woo_create_coupon) is hidden.
 _GROUP_ALLOWED_TOOLS = {
-    "web_search",
-    "fetch_page",
-    "youtube_transcript",
-    "compare_competitor_prices",
-    "woo_orders_overview",
-    "woo_list_orders",
-    "woo_get_order",
-    "woo_list_products",
-    "woo_get_product",
-    "woo_sales_summary",
-    "woo_list_customers",
+    "web_search", "fetch_page", "youtube_transcript", "compare_competitor_prices",
+    "woo_orders_overview", "woo_list_orders", "woo_get_order",
+    "woo_list_products", "woo_get_product", "woo_sales_summary", "woo_list_customers",
 }
 
-# Parameters the framework owns — the LLM never gets to choose these.
-FRAMEWORK_INJECTED_CHAT_ID = {
-    "create_reminder",
-    "list_reminders",
-    "cancel_reminder",
-    # wa-connect appends here when human_handoff is added
+FRAMEWORK_INJECTED_CHAT_ID = {"create_reminder", "list_reminders", "cancel_reminder"}
+
+_AUDITED = {
+    "create_calendar_event", "update_calendar_event", "delete_calendar_event",
+    "send_email", "create_email_draft",
+    "woo_update_product", "woo_create_product", "woo_duplicate_product", "woo_create_coupon",
+    "create_reminder", "cancel_reminder",
+    "add_task", "update_task", "remember", "forget", "link_shipment", "log_decision",
+}
+
+_READ_ONLY_SAFE = {
+    "set_safety_state", "get_safety_state", "list_standing_approvals",
+    "list_tasks", "list_memories", "list_decisions", "list_experiments",
+    "what_i_did", "llm_cost", "revenue_pace", "profit_analysis", "growth_snapshot",
+    "customer_segments", "scan_subscriptions",
 }
 
 
@@ -41,38 +41,46 @@ def _active_tools(context: str) -> dict:
     return TOOL_REGISTRY
 
 
-def _anthropic_tools(registry: dict) -> list[dict]:
-    return [td["schema"] for td in registry.values()]
+def _clean_schema(node):
+    """Anthropic input_schema -> Gemini-friendly OpenAPI subset."""
+    if not isinstance(node, dict):
+        return node
+    out = {}
+    for k, v in node.items():
+        if k in ("additionalProperties", "$schema", "title", "default"):
+            continue
+        if k == "properties" and isinstance(v, dict):
+            out["properties"] = {pk: _clean_schema(pv) for pk, pv in v.items()}
+        elif k == "items":
+            out["items"] = _clean_schema(v)
+        else:
+            out[k] = v
+    return out
 
 
-# tools that change something in the world / durable state — worth auditing
-_AUDITED = {
-    "create_calendar_event", "update_calendar_event", "delete_calendar_event",
-    "send_email", "create_email_draft",
-    "woo_update_product", "woo_create_product", "woo_duplicate_product", "woo_create_coupon",
-    "create_reminder", "cancel_reminder",
-    "add_task", "update_task", "remember", "forget", "link_shipment",
-    "log_decision",
-}
+def _gemini_tools(registry: dict):
+    decls = []
+    for td in registry.values():
+        s = td["schema"]
+        params = _clean_schema(s.get("input_schema", {"type": "object", "properties": {}}))
+        if not params.get("properties"):
+            params = None
+        decls.append(
+            types.FunctionDeclaration(
+                name=s["name"], description=s.get("description", ""), parameters=params
+            )
+        )
+    return [types.Tool(function_declarations=decls)] if decls else None
 
 
-# tools that never change the world — allowed even in read_only
-_READ_ONLY_SAFE = {
-    "set_safety_state", "get_safety_state", "list_standing_approvals",
-    "list_tasks", "list_memories", "list_decisions", "list_experiments",
-    "what_i_did", "llm_cost", "revenue_pace", "profit_analysis", "growth_snapshot",
-    "customer_segments", "scan_subscriptions",
-}
-
-
-def _run_tool(name: str, tool_input: dict, chat_id: str, registry: dict, context: str = "private") -> str:
+def _run_tool(name, tool_input, chat_id, registry, context="private") -> str:
     if name not in registry:
         return f"[שגיאה] הכלי '{name}' לא זמין בהקשר הזה."
     state = database.setting_get("safety_state", "normal")
     if state == "paused":
         return "[הבוט במצב מושהה] תגיד 'חזור לפעילות' כדי להפעיל."
     if state == "read_only" and name in _AUDITED and name not in _READ_ONLY_SAFE:
-        return f"[מצב קריאה בלבד] לא מבצע את {name}. תגיד 'חזור לפעילות' כדי לאפשר."
+        return f"[מצב קריאה בלבד] לא מבצע את {name}. תגיד 'חזור לפעילות'."
     args = dict(tool_input or {})
     if name in FRAMEWORK_INJECTED_CHAT_ID:
         args["chat_id"] = chat_id
@@ -87,15 +95,9 @@ def _run_tool(name: str, tool_input: dict, chat_id: str, registry: dict, context
 
 
 def handle_message(
-    chat_id: str,
-    sender_phone: str,
-    message_text: str,
-    images: list[tuple[str, str]] | None = None,
-    context: str = "private",
-    sender_name: str = "",
-    cheap_model: bool = False,
+    chat_id, sender_phone, message_text,
+    images=None, context="private", sender_name="", cheap_model=False,
 ) -> str:
-    """images: list of (media_type, base64_data) for vision. context: 'private' | 'group'."""
     registry = _active_tools(context)
     memories = database.all_memories() if context != "group" else None
     open_tasks = database.task_list("open") if context != "group" else None
@@ -104,77 +106,66 @@ def handle_message(
         settings = database.settings_all()
         appr = database.approval_list()
         if appr:
-            settings["_standing_approvals"] = "\n".join(
-                f"- {a['rule']}" for a in appr
-            )
+            settings["_standing_approvals"] = "\n".join(f"- {a['rule']}" for a in appr)
+
     system_prompt = build_system_prompt(
         SPEC, registry, context=context, memories=memories,
         open_tasks=open_tasks, settings=settings,
     )
 
-    history = database.tail(chat_id)
-    messages: list[dict] = [{"role": m["role"], "content": m["content"]} for m in history]
+    # history -> Gemini contents
+    contents = []
+    for m in database.tail(chat_id):
+        role = "model" if m["role"] == "assistant" else "user"
+        contents.append(types.Content(role=role, parts=[types.Part(text=m["content"])]))
 
     if context == "group" and sender_name:
         message_text = f"[{sender_name}]: {message_text}"
 
+    user_parts = []
     if images:
-        content = [
-            {
-                "type": "image",
-                "source": {"type": "base64", "media_type": mt, "data": data},
-            }
-            for mt, data in images
-        ]
-        content.append({"type": "text", "text": message_text or "מה יש בתמונה?"})
-        messages.append({"role": "user", "content": content})
-    else:
-        messages.append({"role": "user", "content": message_text})
+        import base64
+        for mt, data in images:
+            user_parts.append(types.Part.from_bytes(data=base64.b64decode(data), mime_type=mt))
+    user_parts.append(types.Part(text=message_text or "מה יש בתמונה?"))
+    contents.append(types.Content(role="user", parts=user_parts))
 
-    if images:
-        model = LLM_VISION_MODEL
-    elif cheap_model:
-        model = "claude-haiku-4-5"
-    else:
-        model = LLM_MODEL
-    max_tokens = 2000 if images else 1024
+    model = LLM_VISION_MODEL if images else LLM_MODEL
+    cfg = types.GenerateContentConfig(
+        system_instruction=system_prompt,
+        tools=_gemini_tools(registry),
+        temperature=0.7,
+        max_output_tokens=2500,
+        automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
+    )
 
     reply_text = ""
     for _ in range(_MAX_TOOL_ITERS):
-        kwargs = dict(
-            model=model,
-            max_tokens=max_tokens,
-            system=system_prompt,
-            messages=messages,
-        )
-        tools = _anthropic_tools(registry)
-        if tools:
-            kwargs["tools"] = tools
-
-        resp = _client.messages.create(**kwargs)
+        resp = _client.models.generate_content(model=model, contents=contents, config=cfg)
         try:
-            database.usage_log(
-                model, resp.usage.input_tokens, resp.usage.output_tokens
-            )
+            u = resp.usage_metadata
+            database.usage_log(model, u.prompt_token_count or 0, u.candidates_token_count or 0)
         except Exception:  # noqa: BLE001
             pass
 
-        tool_uses = [b for b in resp.content if b.type == "tool_use"]
-        text_blocks = [b.text for b in resp.content if b.type == "text"]
-        if text_blocks:
-            reply_text = "\n".join(text_blocks).strip()
+        cand = resp.candidates[0] if resp.candidates else None
+        parts = cand.content.parts if cand and cand.content and cand.content.parts else []
+        calls = [p.function_call for p in parts if getattr(p, "function_call", None)]
+        texts = [p.text for p in parts if getattr(p, "text", None)]
+        if texts:
+            reply_text = "\n".join(texts).strip()
 
-        if resp.stop_reason != "tool_use" or not tool_uses:
+        if not calls:
             break
 
-        messages.append({"role": "assistant", "content": resp.content})
-        tool_results = []
-        for tu in tool_uses:
-            out = _run_tool(tu.name, tu.input, chat_id, registry, context)
-            tool_results.append(
-                {"type": "tool_result", "tool_use_id": tu.id, "content": out}
+        contents.append(cand.content)
+        tool_parts = []
+        for fc in calls:
+            out = _run_tool(fc.name, dict(fc.args or {}), chat_id, registry, context)
+            tool_parts.append(
+                types.Part.from_function_response(name=fc.name, response={"result": out})
             )
-        messages.append({"role": "user", "content": tool_results})
+        contents.append(types.Content(role="user", parts=tool_parts))
     else:
         if not reply_text:
             reply_text = "סליחה מלך, הסתבכתי עם הבקשה הזאת. תנסה לנסח אחרת?"
