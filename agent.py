@@ -79,6 +79,7 @@ def handle_message(
     images: list[tuple[str, str]] | None = None,
     context: str = "private",
     sender_name: str = "",
+    cheap_model: bool = False,
 ) -> str:
     """images: list of (media_type, base64_data) for vision. context: 'private' | 'group'."""
     registry = _active_tools(context)
@@ -107,7 +108,12 @@ def handle_message(
     else:
         messages.append({"role": "user", "content": message_text})
 
-    model = LLM_VISION_MODEL if images else LLM_MODEL
+    if images:
+        model = LLM_VISION_MODEL
+    elif cheap_model:
+        model = "claude-haiku-4-5"
+    else:
+        model = LLM_MODEL
     max_tokens = 2000 if images else 1024
 
     reply_text = ""

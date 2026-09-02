@@ -12,11 +12,13 @@ from tools.whatsapp import send_to_phone
 _OWNER_CHAT = f"{BOT_OWNER_PHONE}@c.us"
 
 
-def _ask_agent(instruction: str) -> str:
+def _ask_agent(instruction: str, cheap: bool = False) -> str:
     # imported lazily to avoid a circular import at module load
     import agent
 
-    return agent.handle_message(_OWNER_CHAT, BOT_OWNER_PHONE, instruction, context="private")
+    return agent.handle_message(
+        _OWNER_CHAT, BOT_OWNER_PHONE, instruction, context="private", cheap_model=cheap
+    )
 
 
 _FMT = (
@@ -87,11 +89,11 @@ def reputation_scan() -> None:
 
 
 def inbox_watch() -> None:
-    """Every ~30 min: surface a genuinely important new email that needs action."""
+    """A few times a day: surface a genuinely important new email that needs action."""
     text = _ask_agent(
-        "[אוטומציה — מעקב אינבוקס] חפש מיילים לא-נקראים מ-3 השעות האחרונות "
+        "[אוטומציה — מעקב אינבוקס] חפש מיילים לא-נקראים מהיום "
         "(search_emails 'is:unread newer_than:1d'). "
-        "האם נכנס משהו שבאמת דורש תשומת לב עכשיו — לקוח שמחכה, ספק, PayPal/אשראי, "
+        "האם נכנס משהו שבאמת דורש תשומת לב — לקוח שמחכה, ספק, PayPal/אשראי, "
         "משהו רשמי, דדליין? אם כן — משפט-שניים על מה זה ומה הצעד. "
         "אם רק שיווק/ספאם/כלום דחוף — החזר בדיוק SKIP. קצר מאוד."
     )
@@ -196,16 +198,16 @@ def register(scheduler) -> None:
         evening_summary, CronTrigger(hour=22, minute=0, timezone=BOT_TIMEZONE),
         id="evening_summary", replace_existing=True, misfire_grace_time=3600,
     )
-    # abandoned cart sweep 3x/day
+    # abandoned cart sweep — once a day
     scheduler.add_job(
         abandoned_carts_check,
-        CronTrigger(hour="12,17,21", minute=30, timezone=BOT_TIMEZONE),
+        CronTrigger(hour=18, minute=0, timezone=BOT_TIMEZONE),
         id="abandoned_carts", replace_existing=True, misfire_grace_time=3600,
     )
-    # competitor price watch — once a day
+    # competitor price watch — once a week (Sunday)
     scheduler.add_job(
         competitor_price_watch,
-        CronTrigger(hour=11, minute=0, timezone=BOT_TIMEZONE),
+        CronTrigger(day_of_week="sun", hour=11, minute=0, timezone=BOT_TIMEZONE),
         id="competitor_prices", replace_existing=True, misfire_grace_time=7200,
     )
     # shipment status sweep — twice a day
@@ -226,10 +228,10 @@ def register(scheduler) -> None:
         CronTrigger(day_of_week="sun", hour=10, minute=0, timezone=BOT_TIMEZONE),
         id="content_calendar", replace_existing=True, misfire_grace_time=7200,
     )
-    # inbox watch — hourly during waking hours (keeps LLM cost sane)
+    # inbox watch — 3x/day
     scheduler.add_job(
         inbox_watch,
-        CronTrigger(minute=5, hour="8-22", timezone=BOT_TIMEZONE),
+        CronTrigger(hour="11,15,19", minute=5, timezone=BOT_TIMEZONE),
         id="inbox_watch", replace_existing=True, misfire_grace_time=1800,
     )
     # follow-up sweep — twice a day
@@ -238,10 +240,10 @@ def register(scheduler) -> None:
         CronTrigger(hour="10,18", minute=45, timezone=BOT_TIMEZONE),
         id="follow_up_sweep", replace_existing=True, misfire_grace_time=3600,
     )
-    # reputation scan — once a day
+    # reputation scan — twice a week (Sun + Wed)
     scheduler.add_job(
         reputation_scan,
-        CronTrigger(hour=13, minute=0, timezone=BOT_TIMEZONE),
+        CronTrigger(day_of_week="sun,wed", hour=13, minute=0, timezone=BOT_TIMEZONE),
         id="reputation_scan", replace_existing=True, misfire_grace_time=7200,
     )
     # meeting prep — evening before
