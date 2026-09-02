@@ -4,7 +4,7 @@ python-dotenv==1.0.1
 httpx==0.28.1
 APScheduler==3.11.0
 SQLAlchemy==2.0.36
-pydantic==2.10.4
+pydantic==2.13.5
 groq==0.13.1
 google-api-python-client==2.151.0
 google-auth==2.57.0
