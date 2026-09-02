@@ -85,8 +85,10 @@ def handle_message(
     registry = _active_tools(context)
     memories = database.all_memories() if context != "group" else None
     open_tasks = database.task_list("open") if context != "group" else None
+    settings = database.settings_all() if context != "group" else None
     system_prompt = build_system_prompt(
-        SPEC, registry, context=context, memories=memories, open_tasks=open_tasks
+        SPEC, registry, context=context, memories=memories,
+        open_tasks=open_tasks, settings=settings,
     )
 
     history = database.tail(chat_id)

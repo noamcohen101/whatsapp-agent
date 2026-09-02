@@ -218,6 +218,12 @@ def setting_get(key: str, default: str = "") -> str:
         return row[0] if row else default
 
 
+def settings_all() -> dict:
+    with _conn() as c, c.cursor() as cur:
+        cur.execute("SELECT key, value FROM settings")
+        return dict(cur.fetchall())
+
+
 def audit_log(action: str, detail: str = "", context: str = "private", actor: str = "bot") -> None:
     try:
         with _conn() as c, c.cursor() as cur:

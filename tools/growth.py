@@ -91,7 +91,24 @@ def customer_segments(scan_orders: int = 150) -> str:
     return "\n".join(out)
 
 
+def set_purchase_gate(amount: str) -> str:
+    database.setting_set("purchase_gate_amount", str(amount))
+    return f"נקבע סף בקרת קנייה: {amount}. מעכשיו לפני כל קנייה מעל הסכום הזה אשאל אותך 3 שאלות."
+
+
 TOOLS = {
+    "set_purchase_gate": {
+        "schema": {
+            "name": "set_purchase_gate",
+            "description": "קובע סכום שמעליו הבוט עוצר לפני קנייה ושואל 3 שאלות. השתמש כשנועם אומר 'תעצור אותי לפני קניות מעל X'.",
+            "input_schema": {
+                "type": "object",
+                "properties": {"amount": {"type": "string"}},
+                "required": ["amount"],
+            },
+        },
+        "fn": set_purchase_gate,
+    },
     "set_revenue_target": {
         "schema": {
             "name": "set_revenue_target",

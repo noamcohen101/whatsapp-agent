@@ -32,7 +32,10 @@ TOOLS = {
             "description": (
                 "שומר עובדה קבועה בזיכרון ארוך-הטווח. השתמש כשנועם אומר לך משהו שכדאי לזכור "
                 "לתמיד — העדפה, כלל, פרט על העסק, החלטה עקרונית, פרט על אדם חשוב. "
-                "אל תשמור מידע רגעי או משהו שכבר בזיכרון. קטגוריות: preferences, business, people, rules, personal, general."
+                "אל תשמור מידע רגעי או משהו שכבר בזיכרון. "
+                "קטגוריות: preferences, business, people, rules, personal, "
+                "voice_style (איך נועם אוהב שכותבים), insight (תובנות ורעיונות ששווה לזכור), "
+                "energy_pattern (מתי נועם חד/גמור), general."
             ),
             "input_schema": {
                 "type": "object",
