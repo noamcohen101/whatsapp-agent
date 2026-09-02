@@ -105,3 +105,11 @@ if "gmail" in SPEC.get("tools", []):
 from tools.cost import TOOLS as _cost_tools
 
 _register(_cost_tools)
+
+# --- Profit intelligence + growth strategy ---
+if "woocommerce" in SPEC.get("tools", []):
+    from tools.profit import TOOLS as _profit_tools
+    from tools.strategy import TOOLS as _strategy_tools
+
+    _register(_profit_tools)
+    _register(_strategy_tools)

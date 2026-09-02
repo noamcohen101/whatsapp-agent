@@ -45,6 +45,30 @@ def evening_summary() -> None:
     send_to_phone(BOT_OWNER_PHONE, f"🌙 *סיכום יום*\n\n{text}")
 
 
+def growth_move() -> None:
+    text = _ask_agent(
+        "[אוטומציה — מהלך צמיחה שבועי] הרץ growth_snapshot. "
+        "תן לי מהלך צמיחה אחד קונקרטי לבדוק השבוע: מה בדיוק לעשות, למה דווקא זה עכשיו, "
+        "ואיך נדע בסוף השבוע אם עבד. משפט על המספרים הרלוונטיים, ואז המהלך. " + _FMT
+    )
+    send_to_phone(BOT_OWNER_PHONE, f"🚀 *המהלך לשבוע*\n\n{text}")
+
+
+def trend_jack() -> None:
+    text = _ask_agent(
+        "[אוטומציה — trend-jacking] חפש (web_search) רגעים חמים בכדורגל ב-24 השעות האחרונות — "
+        "גול/משחק יוצא דופן, העברה גדולה, מאמן שפוטר, כותרת ויראלית, השקת מדים. "
+        "אם יש משהו שרלוונטי לחולצה ש-Israstore מוכר (woo_list_products): "
+        "תגיד לי מיד — איזו חולצה לדחוף, איזה כיתוב לפוסט, ואם שווה מודעה עכשיו. "
+        "אם אין שום דבר חם ורלוונטי — החזר בדיוק SKIP. קצר וחד."
+    )
+    if text.strip().upper().startswith("SKIP"):
+        return
+    from notify import push
+
+    push("urgent", "רגע חם — הזדמנות", text)
+
+
 def content_calendar() -> None:
     text = _ask_agent(
         "[אוטומציה — לוח תוכן שבועי] חפש (web_search) את משחקי הכדורגל הגדולים השבוע "
@@ -277,6 +301,18 @@ def register(scheduler) -> None:
         weekly_review,
         CronTrigger(day_of_week="fri", hour=9, minute=0, timezone=BOT_TIMEZONE),
         id="weekly_review", replace_existing=True, misfire_grace_time=7200,
+    )
+    # growth move — Sunday
+    scheduler.add_job(
+        growth_move,
+        CronTrigger(day_of_week="sun", hour=9, minute=0, timezone=BOT_TIMEZONE),
+        id="growth_move", replace_existing=True, misfire_grace_time=7200,
+    )
+    # trend-jacking — 3x/day
+    scheduler.add_job(
+        trend_jack,
+        CronTrigger(hour="9,14,20", minute=40, timezone=BOT_TIMEZONE),
+        id="trend_jack", replace_existing=True, misfire_grace_time=1800,
     )
     # content calendar — Sunday morning
     scheduler.add_job(
