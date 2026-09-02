@@ -52,6 +52,24 @@ def init_db() -> None:
             )
             """
         )
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS tasks (
+                id           BIGSERIAL PRIMARY KEY,
+                title        TEXT NOT NULL,
+                domain       TEXT DEFAULT 'general',
+                status       TEXT DEFAULT 'open',
+                priority     TEXT DEFAULT 'normal',
+                due          TEXT DEFAULT '',
+                waiting_on   TEXT DEFAULT '',
+                next_action  TEXT DEFAULT '',
+                source       TEXT DEFAULT '',
+                notes        TEXT DEFAULT '',
+                created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+            """
+        )
 
 
         cur.execute(
@@ -97,26 +115,6 @@ def update_shipment_status(shipment_id: int, status: str, deactivate: bool = Fal
         cur.execute(
             "UPDATE shipments SET last_status=%s, active=%s, updated_at=NOW() WHERE id=%s",
             (status, not deactivate, shipment_id),
-        )
-
-
-        cur.execute(
-            """
-            CREATE TABLE IF NOT EXISTS tasks (
-                id           BIGSERIAL PRIMARY KEY,
-                title        TEXT NOT NULL,
-                domain       TEXT DEFAULT 'general',
-                status       TEXT DEFAULT 'open',
-                priority     TEXT DEFAULT 'normal',
-                due          TEXT DEFAULT '',
-                waiting_on   TEXT DEFAULT '',
-                next_action  TEXT DEFAULT '',
-                source       TEXT DEFAULT '',
-                notes        TEXT DEFAULT '',
-                created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-                updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
-            )
-            """
         )
 
 
