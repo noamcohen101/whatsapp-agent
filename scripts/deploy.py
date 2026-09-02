@@ -35,20 +35,32 @@ def api(method, path, body=None):
         return json.loads(r.read().decode() or "{}")
 
 
-dep = api("POST", f"/services/{SID}/deploys", {"clearCache": "do_not_clear"})
-dep_id = dep["id"]
-print(f"triggered {dep_id} commit={dep.get('commit', {}).get('id', '')[:8]}")
+def run_once():
+    dep = api("POST", f"/services/{SID}/deploys", {"clearCache": "do_not_clear"})
+    dep_id = dep["id"]
+    print(f"triggered {dep_id} commit={dep.get('commit', {}).get('id', '')[:8]}")
+    for _ in range(40):
+        status = api("GET", f"/services/{SID}/deploys/{dep_id}")["status"]
+        print(" ", status)
+        if status == "live":
+            return "live"
+        if any(x in status for x in ("failed", "canceled", "deactivated")):
+            return status
+        time.sleep(15)
+    return "timeout"
 
-for _ in range(40):
-    status = api("GET", f"/services/{SID}/deploys/{dep_id}")["status"]
-    print(" ", status)
-    if status == "live":
+
+# Anonymous git clone on Render fails transiently (GitHub rate-limits it).
+# Retry a failed build up to 3 times before giving up.
+for attempt in range(1, 4):
+    result = run_once()
+    if result == "live":
         print("LIVE")
         sys.exit(0)
-    if any(x in status for x in ("failed", "canceled", "deactivated")):
-        print("DEPLOY FAILED")
-        sys.exit(1)
-    time.sleep(15)
+    print(f"attempt {attempt} ended: {result}")
+    if attempt < 3:
+        print("retrying...")
+        time.sleep(5)
 
-print("timeout waiting for deploy")
+print("DEPLOY FAILED after 3 attempts")
 sys.exit(1)
