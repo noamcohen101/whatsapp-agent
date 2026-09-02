@@ -43,6 +43,19 @@ def evening_summary() -> None:
     send_to_phone(BOT_OWNER_PHONE, f"🌙 *סיכום יום*\n\n{text}")
 
 
+def meeting_prep() -> None:
+    text = _ask_agent(
+        "[אוטומציה — הכנה לפגישות מחר] בדוק את היומן של מחר (list_calendar_events). "
+        "לכל פגישה חשובה עם אדם/חברה (לא Deep Work / זמן אישי): הכן תיק קצר — "
+        "מי האדם/החברה (web_search אם צריך), רקע מהמיילים (search_emails), "
+        "מה מטרת הפגישה, ומה חשוב לסגור. "
+        "אם אין פגישות חשובות מחר — החזר בדיוק SKIP. " + _FMT
+    )
+    if text.strip().upper().startswith("SKIP"):
+        return
+    send_to_phone(BOT_OWNER_PHONE, f"📋 *הכנה לפגישות מחר*\n\n{text}")
+
+
 def weekly_review() -> None:
     text = _ask_agent(
         "[אוטומציה — סקירה שבועית] סכם לי את השבוע: מה נסגר (משימות done, הזמנות), "
@@ -168,4 +181,10 @@ def register(scheduler) -> None:
         reputation_scan,
         CronTrigger(hour=13, minute=0, timezone=BOT_TIMEZONE),
         id="reputation_scan", replace_existing=True, misfire_grace_time=7200,
+    )
+    # meeting prep — evening before
+    scheduler.add_job(
+        meeting_prep,
+        CronTrigger(hour=20, minute=30, timezone=BOT_TIMEZONE),
+        id="meeting_prep", replace_existing=True, misfire_grace_time=3600,
     )

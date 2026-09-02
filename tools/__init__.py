@@ -27,6 +27,11 @@ from tools.tasks import TOOLS as _task_tools
 
 _register(_task_tools)
 
+# --- Audit trail + decision journal (always on) ---
+from tools.journal import TOOLS as _journal_tools
+
+_register(_journal_tools)
+
 # --- YouTube transcript / summary (always on) ---
 from tools.youtube import TOOLS as _youtube_tools
 

@@ -54,6 +54,30 @@ def init_db() -> None:
         )
         cur.execute(
             """
+            CREATE TABLE IF NOT EXISTS audit (
+                id         BIGSERIAL PRIMARY KEY,
+                actor      TEXT DEFAULT 'bot',
+                action     TEXT NOT NULL,
+                detail     TEXT DEFAULT '',
+                context    TEXT DEFAULT 'private',
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+            """
+        )
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS decisions (
+                id         BIGSERIAL PRIMARY KEY,
+                decision   TEXT NOT NULL,
+                context    TEXT DEFAULT '',
+                rationale  TEXT DEFAULT '',
+                outcome    TEXT DEFAULT '',
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+            """
+        )
+        cur.execute(
+            """
             CREATE TABLE IF NOT EXISTS tasks (
                 id           BIGSERIAL PRIMARY KEY,
                 title        TEXT NOT NULL,
@@ -156,6 +180,43 @@ def task_update(task_id: int, **fields) -> bool:
             [*sets.values(), task_id],
         )
         return cur.rowcount > 0
+
+
+def audit_log(action: str, detail: str = "", context: str = "private", actor: str = "bot") -> None:
+    try:
+        with _conn() as c, c.cursor() as cur:
+            cur.execute(
+                "INSERT INTO audit (actor, action, detail, context) VALUES (%s,%s,%s,%s)",
+                (actor, action[:120], detail[:800], context),
+            )
+    except Exception as e:  # noqa: BLE001 - audit must never break a request
+        print(f"[audit] failed: {e}")
+
+
+def audit_recent(hours: int = 24, limit: int = 60) -> list[dict]:
+    with _conn() as c, c.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+        cur.execute(
+            "SELECT action, detail, context, created_at FROM audit "
+            "WHERE created_at > NOW() - (%s || ' hours')::interval "
+            "ORDER BY id DESC LIMIT %s",
+            (hours, limit),
+        )
+        return [dict(r) for r in cur.fetchall()]
+
+
+def decision_log(decision: str, context: str = "", rationale: str = "") -> str:
+    with _conn() as c, c.cursor() as cur:
+        cur.execute(
+            "INSERT INTO decisions (decision, context, rationale) VALUES (%s,%s,%s) RETURNING id",
+            (decision, context, rationale),
+        )
+        return str(cur.fetchone()[0])
+
+
+def decision_list(limit: int = 40) -> list[dict]:
+    with _conn() as c, c.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+        cur.execute("SELECT * FROM decisions ORDER BY id DESC LIMIT %s", (limit,))
+        return [dict(r) for r in cur.fetchall()]
 
 
 def add_memory(content: str, category: str = "general") -> int:

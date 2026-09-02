@@ -45,15 +45,29 @@ def _anthropic_tools(registry: dict) -> list[dict]:
     return [td["schema"] for td in registry.values()]
 
 
-def _run_tool(name: str, tool_input: dict, chat_id: str, registry: dict) -> str:
+# tools that change something in the world / durable state — worth auditing
+_AUDITED = {
+    "create_calendar_event", "update_calendar_event", "delete_calendar_event",
+    "send_email", "create_email_draft",
+    "woo_update_product", "woo_create_product", "woo_duplicate_product", "woo_create_coupon",
+    "create_reminder", "cancel_reminder",
+    "add_task", "update_task", "remember", "forget", "link_shipment",
+    "log_decision",
+}
+
+
+def _run_tool(name: str, tool_input: dict, chat_id: str, registry: dict, context: str = "private") -> str:
     if name not in registry:
         return f"[שגיאה] הכלי '{name}' לא זמין בהקשר הזה."
     args = dict(tool_input or {})
     if name in FRAMEWORK_INJECTED_CHAT_ID:
         args["chat_id"] = chat_id
     try:
-        result = registry[name]["fn"](**args)
-        return str(result)
+        result = str(registry[name]["fn"](**args))
+        if name in _AUDITED:
+            summary = ", ".join(f"{k}={v}" for k, v in args.items() if k != "chat_id")
+            database.audit_log(name, f"{summary} → {result[:200]}", context)
+        return result
     except Exception as e:  # noqa: BLE001
         return f"[שגיאה בהרצת {name}] {e}"
 
@@ -121,7 +135,7 @@ def handle_message(
         messages.append({"role": "assistant", "content": resp.content})
         tool_results = []
         for tu in tool_uses:
-            out = _run_tool(tu.name, tu.input, chat_id, registry)
+            out = _run_tool(tu.name, tu.input, chat_id, registry, context)
             tool_results.append(
                 {"type": "tool_result", "tool_use_id": tu.id, "content": out}
             )
