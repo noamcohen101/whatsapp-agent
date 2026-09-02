@@ -6,6 +6,7 @@ GitHub app), so every code push needs a manual deploy. Run after `git push`.
 Usage:  .venv/Scripts/python.exe scripts/deploy.py
 """
 import json
+import subprocess
 import sys
 import time
 import urllib.request
@@ -35,8 +36,18 @@ def api(method, path, body=None):
         return json.loads(r.read().decode() or "{}")
 
 
+HEAD = subprocess.check_output(
+    ["git", "rev-parse", "HEAD"], cwd=BASE, text=True
+).strip()
+print(f"deploying commit {HEAD[:8]}")
+
+
 def run_once():
-    dep = api("POST", f"/services/{SID}/deploys", {"clearCache": "do_not_clear"})
+    dep = api(
+        "POST",
+        f"/services/{SID}/deploys",
+        {"commitId": HEAD, "clearCache": "do_not_clear"},
+    )
     dep_id = dep["id"]
     print(f"triggered {dep_id} commit={dep.get('commit', {}).get('id', '')[:8]}")
     for _ in range(40):
