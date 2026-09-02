@@ -139,11 +139,29 @@ async def webhook(request: Request):
         url = fm.get("downloadUrl")
         fname = fm.get("fileName") or "document"
         caption = fm.get("caption", "")
-        if url:
+        mime = fm.get("mimeType", "")
+        is_audio = "audio" in mime or fname.lower().endswith(
+            (".mp3", ".m4a", ".wav", ".ogg", ".aac")
+        )
+        if url and is_audio:
+            try:
+                transcribed = transcribe(download_file(url), fname, language=None)
+            except Exception as e:  # noqa: BLE001
+                transcribed = None
+                print(f"[webhook] audio-doc transcription failed: {e}")
+            if transcribed == "__TOO_LARGE__":
+                send_reply(chat_id, "הקובץ ארוך מדי לתמלול בבת אחת (מעל ~24MB). שלח קצר יותר או קישור יוטיוב.")
+                return {"ok": True, "handled": "audio-too-large"}
+            if transcribed:
+                text = f"[תמלול אודיו: {fname}]\n{transcribed}\n\n{caption}".strip()
+            else:
+                send_reply(chat_id, f"קיבלתי את '{fname}' אבל לא הצלחתי לתמלל אותו.")
+                return {"ok": True, "handled": "audio-doc-failed"}
+        elif url:
             try:
                 import documents
 
-                extracted = documents.extract(download_file(url), fname, fm.get("mimeType", ""))
+                extracted = documents.extract(download_file(url), fname, mime)
             except Exception as e:  # noqa: BLE001
                 extracted = None
                 print(f"[webhook] document handling failed: {e}")

@@ -27,6 +27,11 @@ from tools.youtube import TOOLS as _youtube_tools
 
 _register(_youtube_tools)
 
+# --- Audio / podcast transcription from URL (always on) ---
+from tools.audio_transcribe import TOOLS as _audio_tools
+
+_register(_audio_tools)
+
 # --- Google Calendar ---
 if "google_calendar" in SPEC.get("tools", []):
     from tools.google_calendar import TOOLS as _calendar_tools
