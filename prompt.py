@@ -236,6 +236,27 @@ FYI = {interruption.get('FYI', '')}
         )
         p.append("\n".join(lines))
 
+    if context != "group":
+        try:
+            import database as _db
+            projs = _db.project_list("active")
+        except Exception:  # noqa: BLE001
+            projs = []
+        if projs:
+            pl = ["## הפרויקטים של נועם (עדכן דרך update_project / log_session)"]
+            for pr in projs:
+                row = f"- *{pr['name']}*"
+                if pr.get("next_step"):
+                    row += f" → {pr['next_step']}"
+                if pr.get("blocker"):
+                    row += f" ⛔ {pr['blocker']}"
+                pl.append(row)
+            pl.append(
+                "כשנועם מספר על מה עבד — log_session. כשהוא חוזר לפרויקט — project_context. "
+                "כשהוא שואל 'על מה לעבוד' — שקלל צעד הבא, תקיעות, עדיפות ואנרגיה."
+            )
+            p.append("\n".join(pl))
+
     if context != "group" and open_tasks:
         lines = ["## משימות פתוחות (Task Layer) — עדכן דרך הכלים add_task/update_task"]
         for t in open_tasks:

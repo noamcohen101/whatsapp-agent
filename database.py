@@ -120,6 +120,32 @@ def init_db() -> None:
         )
         cur.execute(
             """
+            CREATE TABLE IF NOT EXISTS projects (
+                id          BIGSERIAL PRIMARY KEY,
+                name        TEXT NOT NULL,
+                status      TEXT DEFAULT 'active',
+                goal        TEXT DEFAULT '',
+                next_step   TEXT DEFAULT '',
+                blocker     TEXT DEFAULT '',
+                last_note   TEXT DEFAULT '',
+                priority    TEXT DEFAULT 'normal',
+                updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+            """
+        )
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS project_log (
+                id         BIGSERIAL PRIMARY KEY,
+                project_id BIGINT NOT NULL,
+                note       TEXT NOT NULL,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+            """
+        )
+        cur.execute(
+            """
             CREATE TABLE IF NOT EXISTS tasks (
                 id           BIGSERIAL PRIMARY KEY,
                 title        TEXT NOT NULL,
@@ -289,6 +315,65 @@ def approval_revoke(approval_id: int) -> bool:
     with _conn() as c, c.cursor() as cur:
         cur.execute("UPDATE standing_approvals SET active = FALSE WHERE id = %s", (approval_id,))
         return cur.rowcount > 0
+
+
+def project_upsert(name, **fields) -> str:
+    allowed = {"status", "goal", "next_step", "blocker", "last_note", "priority"}
+    sets = {k: v for k, v in fields.items() if k in allowed and v not in (None, "")}
+    with _conn() as c, c.cursor() as cur:
+        cur.execute("SELECT id FROM projects WHERE lower(name) = lower(%s)", (name,))
+        row = cur.fetchone()
+        if row:
+            if sets:
+                cols = ", ".join(f"{k} = %s" for k in sets)
+                cur.execute(
+                    f"UPDATE projects SET {cols}, updated_at = NOW() WHERE id = %s",
+                    [*sets.values(), row[0]],
+                )
+            return str(row[0])
+        cols = ["name"] + list(sets)
+        vals = [name] + list(sets.values())
+        ph = ", ".join(["%s"] * len(vals))
+        cur.execute(
+            f"INSERT INTO projects ({', '.join(cols)}) VALUES ({ph}) RETURNING id", vals
+        )
+        return str(cur.fetchone()[0])
+
+
+def project_list(status: str = "active") -> list[dict]:
+    q = "SELECT * FROM projects"
+    params: list = []
+    if status and status != "all":
+        q += " WHERE status = %s"
+        params.append(status)
+    q += " ORDER BY CASE priority WHEN 'high' THEN 0 WHEN 'normal' THEN 1 ELSE 2 END, updated_at DESC"
+    with _conn() as c, c.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+        cur.execute(q, params)
+        return [dict(r) for r in cur.fetchall()]
+
+
+def project_get(name: str) -> dict | None:
+    with _conn() as c, c.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+        cur.execute("SELECT * FROM projects WHERE lower(name) = lower(%s)", (name,))
+        p = cur.fetchone()
+        if not p:
+            return None
+        cur.execute(
+            "SELECT note, created_at FROM project_log WHERE project_id = %s ORDER BY id DESC LIMIT 8",
+            (p["id"],),
+        )
+        d = dict(p)
+        d["recent_log"] = [dict(r) for r in cur.fetchall()]
+        return d
+
+
+def project_add_log(name: str, note: str) -> bool:
+    pid = project_upsert(name, last_note=note)
+    with _conn() as c, c.cursor() as cur:
+        cur.execute(
+            "INSERT INTO project_log (project_id, note) VALUES (%s, %s)", (pid, note)
+        )
+    return True
 
 
 def audit_log(action: str, detail: str = "", context: str = "private", actor: str = "bot") -> None:

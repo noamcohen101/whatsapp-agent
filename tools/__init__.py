@@ -27,6 +27,11 @@ from tools.tasks import TOOLS as _task_tools
 
 _register(_task_tools)
 
+# --- Projects: chief-of-staff for what Noam is building (always on) ---
+from tools.projects import TOOLS as _project_tools
+
+_register(_project_tools)
+
 # --- Audit trail + decision journal (always on) ---
 from tools.journal import TOOLS as _journal_tools
 
