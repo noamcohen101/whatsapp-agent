@@ -19,6 +19,13 @@ _WHITELIST = {BOT_OWNER_PHONE} | {
 }
 _ANSWER_GROUPS = SPEC.get("audience", {}).get("answer_groups", False)
 
+_GROUP_CFG = SPEC.get("tools_config", {}).get("whatsapp_groups", {})
+_ALLOWED_GROUPS = {
+    g["chat_id"]
+    for g in _GROUP_CFG.get("allowed_groups", [])
+    if _GROUP_CFG.get("respond_in_group")
+}
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -108,12 +115,18 @@ async def webhook(request: Request):
         f"type={message_data.get('typeMessage')} whitelist={_WHITELIST}"
     )
 
-    if chat_id.endswith("@g.us") and not _ANSWER_GROUPS:
-        return {"ok": True, "skipped": "group"}
+    is_group = chat_id.endswith("@g.us")
+    if is_group:
+        if chat_id not in _ALLOWED_GROUPS:
+            return {"ok": True, "skipped": "group not allowed"}
+        context = "group"
+    else:
+        if sender not in _WHITELIST:
+            print(f"[webhook] skip: {sender} not in whitelist")
+            return {"ok": True, "skipped": "not whitelisted"}
+        context = "private"
 
-    if sender not in _WHITELIST:
-        print(f"[webhook] skip: {sender} not in whitelist")
-        return {"ok": True, "skipped": "not whitelisted"}
+    sender_name = sender_data.get("senderName") or sender_data.get("chatName") or ""
 
     text = _extract_text(message_data)
     images = _extract_images(message_data)
@@ -121,7 +134,10 @@ async def webhook(request: Request):
     if images:
         caption = message_data.get("fileMessageData", {}).get("caption", "")
         try:
-            reply = agent.handle_message(chat_id, sender, text or caption, images=images)
+            reply = agent.handle_message(
+                chat_id, sender, text or caption, images=images,
+                context=context, sender_name=sender_name,
+            )
         except Exception as e:  # noqa: BLE001
             print(f"[webhook] agent error (image): {e}")
             reply = "סליחה מלך, נתקלתי בתקלה בניתוח התמונה. תנסה שוב 👑"
@@ -150,9 +166,11 @@ async def webhook(request: Request):
         print(f"[webhook] skip: unsupported type {message_data.get('typeMessage')}")
         return {"ok": True, "skipped": f"unsupported type {message_data.get('typeMessage')}"}
 
-    print(f"[webhook] handling: {text[:80]!r}")
+    print(f"[webhook] handling ({context}): {text[:80]!r}")
     try:
-        reply = agent.handle_message(chat_id, sender, text)
+        reply = agent.handle_message(
+            chat_id, sender, text, context=context, sender_name=sender_name
+        )
     except Exception as e:  # noqa: BLE001
         print(f"[webhook] agent error: {e}")
         reply = "סליחה מלך, נתקלתי בתקלה. תנסה שוב עוד רגע 👑"

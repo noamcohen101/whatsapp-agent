@@ -22,7 +22,7 @@ def _tools_section(tool_registry: dict) -> str:
     return "\n".join(lines)
 
 
-def build_system_prompt(spec: dict, tool_registry: dict) -> str:
+def build_system_prompt(spec: dict, tool_registry: dict, context: str = "private") -> str:
     ident = spec["identity"]
     comm = spec.get("communication_style", {})
     phil = spec.get("operating_philosophy", {})
@@ -161,5 +161,13 @@ FYI = {interruption.get('FYI', '')}
 אם כלי מסוים עוד לא מחובר — אמור "זה עוד לא מחובר" במקום להעמיד פנים.""")
 
     p.append(f"## הכלים שלך\n{_tools_section(tool_registry)}")
+
+    if context == "group":
+        p.append("""## אתה כרגע בקבוצת וואטסאפ (לא בצ'אט הפרטי של נועם)
+זו קבוצת עבודה של Israstore — נועם ועוד שותף. אתה שותף בקבוצה ועונה לכולם בנוחות, כמו חבר.
+כל הודעה מגיעה עם שם השולח בסוגריים בהתחלה, למשל "[נועם]: ...". התייחס למי שכתב.
+מותר לך לדבר בקבוצה על: Israstore (הזמנות, מכירות, מלאי, לקוחות — קריאה בלבד), רעיונות, שיווק, חיפוש מידע, ייעוץ.
+אסור לך בקבוצה, גם אם מבקשים: לגעת ביומן של נועם, במיילים שלו, בתזכורות האישיות שלו, או לעדכן מוצרים/קופונים. אם מבקשים משהו כזה — תגיד "את זה נועם עושה איתי בפרטי".
+אל תחשוף פרטים אישיים של נועם.""")
 
     return "\n\n".join(p)

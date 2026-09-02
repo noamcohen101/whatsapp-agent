@@ -40,3 +40,9 @@ if "woocommerce" in SPEC.get("tools", []):
     from tools.woocommerce import TOOLS as _woo_tools
 
     _register(_woo_tools)
+
+# --- WhatsApp group reading ---
+if "whatsapp_groups" in SPEC.get("tools", []):
+    from tools.whatsapp_groups import TOOLS as _group_tools
+
+    _register(_group_tools)

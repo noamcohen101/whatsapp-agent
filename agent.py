@@ -9,6 +9,20 @@ from tools import TOOL_REGISTRY
 _client = Anthropic(api_key=ANTHROPIC_API_KEY)
 _MAX_TOOL_ITERS = 5
 
+# In a group chat the bot is a shared assistant — only these tools are exposed.
+# Everything personal to Noam (calendar, gmail, personal reminders) and every
+# write action (woo_update_product, woo_create_coupon) is hidden.
+_GROUP_ALLOWED_TOOLS = {
+    "web_search",
+    "fetch_page",
+    "woo_list_orders",
+    "woo_get_order",
+    "woo_list_products",
+    "woo_get_product",
+    "woo_sales_summary",
+    "woo_list_customers",
+}
+
 # Parameters the framework owns — the LLM never gets to choose these.
 FRAMEWORK_INJECTED_CHAT_ID = {
     "create_reminder",
@@ -18,18 +32,24 @@ FRAMEWORK_INJECTED_CHAT_ID = {
 }
 
 
-def _anthropic_tools() -> list[dict]:
-    return [td["schema"] for td in TOOL_REGISTRY.values()]
+def _active_tools(context: str) -> dict:
+    if context == "group":
+        return {k: v for k, v in TOOL_REGISTRY.items() if k in _GROUP_ALLOWED_TOOLS}
+    return TOOL_REGISTRY
 
 
-def _run_tool(name: str, tool_input: dict, chat_id: str) -> str:
-    if name not in TOOL_REGISTRY:
-        return f"[שגיאה] הכלי '{name}' לא קיים."
+def _anthropic_tools(registry: dict) -> list[dict]:
+    return [td["schema"] for td in registry.values()]
+
+
+def _run_tool(name: str, tool_input: dict, chat_id: str, registry: dict) -> str:
+    if name not in registry:
+        return f"[שגיאה] הכלי '{name}' לא זמין בהקשר הזה."
     args = dict(tool_input or {})
     if name in FRAMEWORK_INJECTED_CHAT_ID:
         args["chat_id"] = chat_id
     try:
-        result = TOOL_REGISTRY[name]["fn"](**args)
+        result = registry[name]["fn"](**args)
         return str(result)
     except Exception as e:  # noqa: BLE001
         return f"[שגיאה בהרצת {name}] {e}"
@@ -40,12 +60,18 @@ def handle_message(
     sender_phone: str,
     message_text: str,
     images: list[tuple[str, str]] | None = None,
+    context: str = "private",
+    sender_name: str = "",
 ) -> str:
-    """images: list of (media_type, base64_data) for vision, e.g. ('image/jpeg', '...')."""
-    system_prompt = build_system_prompt(SPEC, TOOL_REGISTRY)
+    """images: list of (media_type, base64_data) for vision. context: 'private' | 'group'."""
+    registry = _active_tools(context)
+    system_prompt = build_system_prompt(SPEC, registry, context=context)
 
     history = database.tail(chat_id)
     messages: list[dict] = [{"role": m["role"], "content": m["content"]} for m in history]
+
+    if context == "group" and sender_name:
+        message_text = f"[{sender_name}]: {message_text}"
 
     if images:
         content = [
@@ -71,7 +97,7 @@ def handle_message(
             system=system_prompt,
             messages=messages,
         )
-        tools = _anthropic_tools()
+        tools = _anthropic_tools(registry)
         if tools:
             kwargs["tools"] = tools
 
@@ -88,7 +114,7 @@ def handle_message(
         messages.append({"role": "assistant", "content": resp.content})
         tool_results = []
         for tu in tool_uses:
-            out = _run_tool(tu.name, tu.input, chat_id)
+            out = _run_tool(tu.name, tu.input, chat_id, registry)
             tool_results.append(
                 {"type": "tool_result", "tool_use_id": tu.id, "content": out}
             )
