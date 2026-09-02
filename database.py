@@ -54,6 +54,52 @@ def init_db() -> None:
         )
 
 
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS shipments (
+                id              BIGSERIAL PRIMARY KEY,
+                order_id        TEXT NOT NULL,
+                tracking_number TEXT NOT NULL,
+                carrier         TEXT DEFAULT '',
+                customer_name   TEXT DEFAULT '',
+                customer_phone  TEXT DEFAULT '',
+                last_status     TEXT DEFAULT 'new',
+                active          BOOLEAN DEFAULT TRUE,
+                created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                UNIQUE (tracking_number)
+            )
+            """
+        )
+
+
+def add_shipment(order_id, tracking_number, carrier, name, phone) -> str:
+    with _conn() as c, c.cursor() as cur:
+        cur.execute(
+            """INSERT INTO shipments (order_id, tracking_number, carrier, customer_name, customer_phone)
+               VALUES (%s,%s,%s,%s,%s)
+               ON CONFLICT (tracking_number) DO UPDATE SET order_id=EXCLUDED.order_id,
+                 carrier=EXCLUDED.carrier, active=TRUE, updated_at=NOW()
+               RETURNING id""",
+            (order_id, tracking_number, carrier, name, phone),
+        )
+        return str(cur.fetchone()[0])
+
+
+def active_shipments() -> list[dict]:
+    with _conn() as c, c.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+        cur.execute("SELECT * FROM shipments WHERE active ORDER BY id")
+        return [dict(r) for r in cur.fetchall()]
+
+
+def update_shipment_status(shipment_id: int, status: str, deactivate: bool = False) -> None:
+    with _conn() as c, c.cursor() as cur:
+        cur.execute(
+            "UPDATE shipments SET last_status=%s, active=%s, updated_at=NOW() WHERE id=%s",
+            (status, not deactivate, shipment_id),
+        )
+
+
 def add_memory(content: str, category: str = "general") -> int:
     with _conn() as c, c.cursor() as cur:
         cur.execute(

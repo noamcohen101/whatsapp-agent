@@ -57,3 +57,9 @@ if "woocommerce" in SPEC.get("tools", []):
     from tools.competitors import TOOLS as _competitor_tools
 
     _register(_competitor_tools)
+
+# --- Shipment tracking ---
+if "woocommerce" in SPEC.get("tools", []):
+    from tools.shipments import TOOLS as _shipment_tools
+
+    _register(_shipment_tools)

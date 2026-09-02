@@ -63,6 +63,22 @@ def competitor_price_watch() -> None:
     send_to_phone(BOT_OWNER_PHONE, f"🔍 *ריגול מחירים*\n\n{text}")
 
 
+def shipment_updates() -> None:
+    import database
+
+    if not database.active_shipments():
+        return
+    text = _ask_agent(
+        "[אוטומציה — מעקב משלוחים] הרץ check_shipments. "
+        "רק למשלוחים שסומנו 🔔 (השתנה סטטוס): הכן טיוטת עדכון קצר ואדיב ללקוח בוואטסאפ "
+        "(איפה החבילה / מתי צפויה). הצג לי טיוטה + טלפון הלקוח, אני אאשר. "
+        "אם שום דבר לא השתנה — החזר בדיוק SKIP. " + _FMT
+    )
+    if text.strip().upper().startswith("SKIP"):
+        return
+    send_to_phone(BOT_OWNER_PHONE, f"📦 *עדכוני משלוחים*\n\n{text}")
+
+
 def abandoned_carts_check() -> None:
     text = _ask_agent(
         "[אוטומציה — עגלות נטושות] בדוק עגלות נטושות (woo_abandoned_checkouts). "
@@ -97,4 +113,10 @@ def register(scheduler) -> None:
         competitor_price_watch,
         CronTrigger(hour=11, minute=0, timezone=BOT_TIMEZONE),
         id="competitor_prices", replace_existing=True, misfire_grace_time=7200,
+    )
+    # shipment status sweep — twice a day
+    scheduler.add_job(
+        shipment_updates,
+        CronTrigger(hour="9,19", minute=15, timezone=BOT_TIMEZONE),
+        id="shipment_updates", replace_existing=True, misfire_grace_time=3600,
     )
