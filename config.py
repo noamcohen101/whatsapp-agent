@@ -26,6 +26,8 @@ GREEN_API_TOKEN = _require("GREEN_API_TOKEN")
 # --- LLM ---
 LLM_PROVIDER = os.getenv("LLM_PROVIDER", "anthropic")
 LLM_MODEL = os.getenv("LLM_MODEL", "claude-haiku-4-5")
+# Stronger model for image/vision messages (better Hebrew OCR). Falls back to LLM_MODEL.
+LLM_VISION_MODEL = os.getenv("LLM_VISION_MODEL", "claude-sonnet-4-5")
 ANTHROPIC_API_KEY = _require("ANTHROPIC_API_KEY")
 
 # --- Transcription (voice messages) ---

@@ -1,7 +1,7 @@
 """LLM call + tool-calling loop (Anthropic). One entry point: handle_message()."""
 from anthropic import Anthropic
 
-from config import ANTHROPIC_API_KEY, LLM_MODEL, SPEC
+from config import ANTHROPIC_API_KEY, LLM_MODEL, LLM_VISION_MODEL, SPEC
 import database
 from prompt import build_system_prompt
 from tools import TOOL_REGISTRY
@@ -60,11 +60,14 @@ def handle_message(
     else:
         messages.append({"role": "user", "content": message_text})
 
+    model = LLM_VISION_MODEL if images else LLM_MODEL
+    max_tokens = 2000 if images else 1024
+
     reply_text = ""
     for _ in range(_MAX_TOOL_ITERS):
         kwargs = dict(
-            model=LLM_MODEL,
-            max_tokens=1024,
+            model=model,
+            max_tokens=max_tokens,
             system=system_prompt,
             messages=messages,
         )
