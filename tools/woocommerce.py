@@ -25,6 +25,17 @@ def _get(path: str, params: dict | None = None):
     return r.json()
 
 
+def _get_with_headers(path: str, params: dict | None = None):
+    r = httpx.get(
+        f"{WOO_URL}/wp-json/wc/v3/{path}",
+        params={**(params or {}), **_AUTH},
+        headers=_HEADERS,
+        timeout=_TIMEOUT,
+    )
+    r.raise_for_status()
+    return r.json(), r.headers
+
+
 def _put(path: str, body: dict):
     r = httpx.put(
         f"{WOO_URL}/wp-json/wc/v3/{path}",
@@ -49,22 +60,43 @@ def _post(path: str, body: dict):
     return r.json()
 
 
+def orders_overview() -> str:
+    """Exact counts per order status + exact total order count. Real data, no estimation."""
+    totals = _get("reports/orders/totals")
+    lines = ["מספרי הזמנות מדויקים לפי סטטוס:"]
+    grand = 0
+    for t in totals:
+        grand += t.get("total", 0)
+        lines.append(f"  {t.get('name')} ({t.get('slug')}): {t.get('total')}")
+    lines.append(f"סה\"כ הזמנות בכל הזמנים: {grand}")
+    return "\n".join(lines)
+
+
 def list_orders(status: str = "", search: str = "", limit: int = 10) -> str:
     params = {"per_page": min(limit, 25), "orderby": "date", "order": "desc"}
     if status:
         params["status"] = status
     if search:
         params["search"] = search
-    orders = _get("orders", params)
+    orders, headers = _get_with_headers("orders", params)
+    total = headers.get("X-WP-Total", "?")
     if not orders:
-        return "אין הזמנות שתואמות."
-    lines = []
+        return f"אין הזמנות שתואמות (סה\"כ תואמות: {total})."
+    lines = [
+        f"סה\"כ הזמנות שתואמות לחיפוש: {total}. מוצגות {len(orders)} האחרונות:"
+    ]
     for o in orders:
         b = o.get("billing", {})
         name = f"{b.get('first_name','')} {b.get('last_name','')}".strip()
         items = ", ".join(f"{li['quantity']}x {li['name']}" for li in o.get("line_items", []))
         lines.append(
-            f"#{o['id']} · {o['status']} · {o['total']} {o['currency']} · {name}\n  {o['date_created'][:10]} · {items}"
+            f"#{o['id']} · {o['status']} · {o['total']} {o['currency']} · {name}\n"
+            f"  {o['date_created'][:10]} · {items}"
+        )
+    if str(total).isdigit() and int(total) > len(orders):
+        lines.append(
+            f"(יש עוד {int(total) - len(orders)} הזמנות תואמות שלא מוצגות — "
+            f"אל תשער מה יש בהן, בקש עוד או השתמש ב-woo_orders_overview / woo_sales_summary)"
         )
     return "\n\n".join(lines)
 
@@ -178,6 +210,10 @@ def _sch(name, desc, props, required):
 
 
 TOOLS = {
+    "woo_orders_overview": {**_sch(
+        "woo_orders_overview",
+        "מספרי הזמנות מדויקים לפי סטטוס (completed/processing/pending/cancelled/refunded) + סה\"כ. השתמש בזה לכל שאלה על 'כמה הזמנות'.",
+        {}, []), "fn": orders_overview},
     "woo_list_orders": {**_sch(
         "woo_list_orders",
         "מציג הזמנות מ-Israstore. status: pending/processing/on-hold/completed/cancelled/refunded. השאר ריק לכל ההזמנות האחרונות.",
