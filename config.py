@@ -40,6 +40,11 @@ GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "")
 GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "")
 GOOGLE_REFRESH_TOKEN = os.getenv("GOOGLE_REFRESH_TOKEN", "")
 
+# --- WooCommerce (Israstore) ---
+WOO_URL = os.getenv("WOO_URL", "").rstrip("/")
+WOO_KEY = os.getenv("WOO_KEY", "")
+WOO_SECRET = os.getenv("WOO_SECRET", "")
+
 # --- Bot ---
 BOT_OWNER_PHONE = _require("BOT_OWNER_PHONE").lstrip("+")
 BOT_TIMEZONE = os.getenv("BOT_TIMEZONE", "Asia/Jerusalem")

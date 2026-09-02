@@ -34,3 +34,9 @@ if "web_search" in SPEC.get("tools", []):
     from tools.web_search import TOOLS as _web_tools
 
     _register(_web_tools)
+
+# --- WooCommerce (Israstore) ---
+if "woocommerce" in SPEC.get("tools", []):
+    from tools.woocommerce import TOOLS as _woo_tools
+
+    _register(_woo_tools)
