@@ -161,6 +161,39 @@ def list_orders(status: str = "", search: str = "", limit: int = 10) -> str:
     return "\n\n".join(lines)
 
 
+def prep_supplier_order(order_id: str) -> str:
+    """Format a clean order message for the China supplier from a paid WooCommerce order."""
+    o = _get(f"orders/{order_id}")
+    s = o.get("shipping", {}) or o.get("billing", {})
+    b = o.get("billing", {})
+    items = []
+    for li in o.get("line_items", []):
+        opts = "; ".join(
+            f"{m.get('key')}: {m.get('value')}" for m in li.get("meta_data", [])
+            if m.get("key") and not str(m.get("key")).startswith("_")
+        )
+        items.append(f"- {li['name']} x{li['quantity']}" + (f" ({opts})" if opts else ""))
+    addr = ", ".join(
+        x for x in [
+            f"{s.get('first_name','')} {s.get('last_name','')}".strip(),
+            s.get("address_1", ""), s.get("address_2", ""),
+            s.get("city", ""), s.get("state", ""), s.get("postcode", ""),
+            s.get("country", ""),
+        ] if x
+    )
+    phone = s.get("phone") or b.get("phone", "")
+    return (
+        f"הודעה מוכנה לספק (הזמנה #{o['id']}) — העבר לו בוואטסאפ:\n"
+        f"---\n"
+        f"New order, please ship:\n" + "\n".join(items) + "\n\n"
+        f"Ship to:\n{addr}\n"
+        f"Phone: {phone}\n"
+        f"Order ref: {o['id']}\n"
+        f"---\n"
+        f"(סכום שהלקוח שילם: {o['total']} {o['currency']})"
+    )
+
+
 def get_order(order_id: str) -> str:
     o = _get(f"orders/{order_id}")
     b = o.get("billing", {})
@@ -378,6 +411,11 @@ TOOLS = {
          "limit": {"type": "integer"}}, []), "fn": list_orders},
     "woo_get_order": {**_sch("woo_get_order", "פרטים מלאים של הזמנה לפי מספר.",
         {"order_id": {"type": "string"}}, ["order_id"]), "fn": get_order},
+    "woo_prep_supplier_order": {**_sch(
+        "woo_prep_supplier_order",
+        "מכין הודעה מוכנה לספק בסין מהזמנה ששולמה — מוצרים, מידות, כתובת משלוח באנגלית. "
+        "נועם מעביר לספק בעצמו (הבוט לא יוזם קשר עם הספק).",
+        {"order_id": {"type": "string"}}, ["order_id"]), "fn": prep_supplier_order},
     "woo_list_products": {**_sch(
         "woo_list_products",
         "מציג מוצרים ומלאי. low_stock_only=true מציג רק מוצרים שעומדים להיגמר (<=3).",

@@ -24,8 +24,9 @@ def operating_cycle(slot: str = "midday") -> None:
    על שגרתי — טפל לבד (טיוטה + שליחה מותרת לתשובות שגרתיות). על השאר — פתח משימה או סמן לי.
 2. **Task Layer** — list_tasks. מה תקוע? מה אפשר לקדם עכשיו? רדוף follow-ups שהגיע זמנם. עדכן סטטוסים.
 3. **יומן** — מה יש היום/מחר. התנגשויות? צריך הכנה למשהו?
-4. **Israstore** — woo_orders_overview + failed_payments + abandoned_checkouts + revenue_pace.
-   הזמנות pending ישנות? תשלומים שנכשלו? חריגים?
+4. **Israstore** — woo_orders_overview + failed_payments + revenue_pace.
+   הזמנות בסטטוס processing ששולמו — לכל אחת שנראה שעדיין לא הועברה לספק, הכן הודעה מוכנה לספק
+   (woo_prep_supplier_order) והצג לי אותה כדי שאעביר. הזמנות pending ישנות? תשלומים שנכשלו? חריגים?
 5. **דברים פתוחים בזיכרון / החלטות שממתינות**.
 
 בצע כל מה שמותר לך לבד ותעד. ואז שלח לי דיווח אחד קצר בפורמט:

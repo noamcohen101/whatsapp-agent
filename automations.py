@@ -98,6 +98,18 @@ def cost_report() -> None:
     send_to_phone(BOT_OWNER_PHONE, f"💸 *עלות הבוט השבוע*\n\n{llm_cost(7)}")
 
 
+def trust_report() -> None:
+    text = _ask_agent(
+        "[אוטומציה — דוח אמון שבועי] הרץ what_i_did(168). "
+        "סכם לי מה עשית לבד השבוע (מיילים, יומן, משימות, follow-ups) — לפי קטגוריות. "
+        "כמה פעולות, כמה מהן שגרתיות. היו טעויות או דברים שהייתי צריך לתקן אחריך? "
+        "האם יש סוג פעולה שאתה שוב ושוב שואל עליו ואפשר לתת לך אישור עומד? "
+        "ולהיפך — משהו שעשית לבד שהיית מעדיף שתשאל? "
+        "בסוף: המלצה — לכוונן את רמת האוטונומיה למעלה, למטה, או להשאיר. " + _FMT
+    )
+    send_to_phone(BOT_OWNER_PHONE, f"🤝 *דוח אמון שבועי*\n\n{text}")
+
+
 def weekly_review() -> None:
     text = _ask_agent(
         "[אוטומציה — סקירה שבועית] סכם לי את השבוע: מה נסגר, קצב הכנסות מול יעד (revenue_pace), "
@@ -312,6 +324,12 @@ def register(scheduler) -> None:
         growth_move,
         CronTrigger(day_of_week="sun", hour=9, minute=0, timezone=BOT_TIMEZONE),
         id="growth_move", replace_existing=True, misfire_grace_time=7200,
+    )
+    # trust / autonomy report — Saturday evening
+    scheduler.add_job(
+        trust_report,
+        CronTrigger(day_of_week="sat", hour=20, minute=0, timezone=BOT_TIMEZONE),
+        id="trust_report", replace_existing=True, misfire_grace_time=7200,
     )
     # trend-jacking — 3x/day
     scheduler.add_job(
