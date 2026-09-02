@@ -32,6 +32,11 @@ from tools.journal import TOOLS as _journal_tools
 
 _register(_journal_tools)
 
+# --- A/B experiment tracker (always on) ---
+from tools.experiments import TOOLS as _experiment_tools
+
+_register(_experiment_tools)
+
 # --- YouTube transcript / summary (always on) ---
 from tools.youtube import TOOLS as _youtube_tools
 

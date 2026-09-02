@@ -66,6 +66,23 @@ def init_db() -> None:
         )
         cur.execute(
             """
+            CREATE TABLE IF NOT EXISTS experiments (
+                id         BIGSERIAL PRIMARY KEY,
+                name       TEXT NOT NULL,
+                variant_a  TEXT DEFAULT '',
+                variant_b  TEXT DEFAULT '',
+                metric     TEXT DEFAULT '',
+                result_a   TEXT DEFAULT '',
+                result_b   TEXT DEFAULT '',
+                status     TEXT DEFAULT 'running',
+                winner     TEXT DEFAULT '',
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+            """
+        )
+        cur.execute(
+            """
             CREATE TABLE IF NOT EXISTS decisions (
                 id         BIGSERIAL PRIMARY KEY,
                 decision   TEXT NOT NULL,
@@ -202,6 +219,41 @@ def audit_recent(hours: int = 24, limit: int = 60) -> list[dict]:
             (hours, limit),
         )
         return [dict(r) for r in cur.fetchall()]
+
+
+def experiment_add(name, variant_a, variant_b, metric) -> str:
+    with _conn() as c, c.cursor() as cur:
+        cur.execute(
+            "INSERT INTO experiments (name, variant_a, variant_b, metric) VALUES (%s,%s,%s,%s) RETURNING id",
+            (name, variant_a, variant_b, metric),
+        )
+        return str(cur.fetchone()[0])
+
+
+def experiment_list(status="") -> list[dict]:
+    q = "SELECT * FROM experiments"
+    params: list = []
+    if status:
+        q += " WHERE status = %s"
+        params.append(status)
+    q += " ORDER BY id DESC LIMIT 30"
+    with _conn() as c, c.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+        cur.execute(q, params)
+        return [dict(r) for r in cur.fetchall()]
+
+
+def experiment_update(exp_id: int, **fields) -> bool:
+    allowed = {"result_a", "result_b", "status", "winner", "metric"}
+    sets = {k: v for k, v in fields.items() if k in allowed and v}
+    if not sets:
+        return False
+    cols = ", ".join(f"{k} = %s" for k in sets)
+    with _conn() as c, c.cursor() as cur:
+        cur.execute(
+            f"UPDATE experiments SET {cols}, updated_at = NOW() WHERE id = %s",
+            [*sets.values(), exp_id],
+        )
+        return cur.rowcount > 0
 
 
 def decision_log(decision: str, context: str = "", rationale: str = "") -> str:

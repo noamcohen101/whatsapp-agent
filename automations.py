@@ -43,6 +43,16 @@ def evening_summary() -> None:
     send_to_phone(BOT_OWNER_PHONE, f"🌙 *סיכום יום*\n\n{text}")
 
 
+def content_calendar() -> None:
+    text = _ask_agent(
+        "[אוטומציה — לוח תוכן שבועי] חפש (web_search) את משחקי הכדורגל הגדולים השבוע "
+        "(ליגות מובילות, צ'מפיונס, נבחרות, דרבי). בדוק אילו חולצות רלוונטיות במלאי ב-Israstore. "
+        "הצע לוח תוכן לשבוע: אילו פוסטים/סטוריז, מתי (סביב המשחקים), איזו חולצה לדחוף בכל אחד, "
+        "וזווית קצרה לכל פוסט. אם אין משחקים בולטים — הצע 2-3 רעיונות כלליים. " + _FMT
+    )
+    send_to_phone(BOT_OWNER_PHONE, f"📅 *לוח תוכן לשבוע*\n\n{text}")
+
+
 def meeting_prep() -> None:
     text = _ask_agent(
         "[אוטומציה — הכנה לפגישות מחר] בדוק את היומן של מחר (list_calendar_events). "
@@ -170,11 +180,17 @@ def register(scheduler) -> None:
         CronTrigger(hour="9,19", minute=15, timezone=BOT_TIMEZONE),
         id="shipment_updates", replace_existing=True, misfire_grace_time=3600,
     )
-    # weekly review — Friday morning (day_of_week: 4 = Friday)
+    # weekly review — Friday morning
     scheduler.add_job(
         weekly_review,
         CronTrigger(day_of_week="fri", hour=9, minute=0, timezone=BOT_TIMEZONE),
         id="weekly_review", replace_existing=True, misfire_grace_time=7200,
+    )
+    # content calendar — Sunday morning
+    scheduler.add_job(
+        content_calendar,
+        CronTrigger(day_of_week="sun", hour=10, minute=0, timezone=BOT_TIMEZONE),
+        id="content_calendar", replace_existing=True, misfire_grace_time=7200,
     )
     # reputation scan — once a day
     scheduler.add_job(
