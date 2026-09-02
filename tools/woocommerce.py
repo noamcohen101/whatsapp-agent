@@ -60,6 +60,37 @@ def _post(path: str, body: dict):
     return r.json()
 
 
+def abandoned_checkouts(hours_old: int = 2, limit: int = 15) -> str:
+    """Pending/failed orders older than `hours_old` with customer contact = likely abandoned carts."""
+    from datetime import datetime, timedelta, timezone
+
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=hours_old)
+    found = []
+    for status in ("pending", "failed"):
+        orders = _get(
+            "orders",
+            {"status": status, "per_page": min(limit, 25), "orderby": "date", "order": "desc"},
+        )
+        for o in orders:
+            b = o.get("billing", {})
+            if not (b.get("email") or b.get("phone")):
+                continue
+            created = datetime.fromisoformat(o["date_created_gmt"] + "+00:00")
+            if created > cutoff:
+                continue
+            items = ", ".join(
+                f"{li['quantity']}x {li['name']}" for li in o.get("line_items", [])
+            )
+            found.append(
+                f"#{o['id']} · {status} · {o['total']} {o['currency']} · "
+                f"{b.get('first_name','')} · {b.get('phone','') or b.get('email','')}\n"
+                f"  נוצר {o['date_created'][:16]} · {items}"
+            )
+    if not found:
+        return "אין עגלות נטושות פתוחות. 👍"
+    return f"עגלות נטושות ({len(found)}):\n\n" + "\n\n".join(found)
+
+
 def orders_overview() -> str:
     """Exact counts per order status + exact total order count. Real data, no estimation."""
     totals = _get("reports/orders/totals")
@@ -214,6 +245,11 @@ TOOLS = {
         "woo_orders_overview",
         "מספרי הזמנות מדויקים לפי סטטוס (completed/processing/pending/cancelled/refunded) + סה\"כ. השתמש בזה לכל שאלה על 'כמה הזמנות'.",
         {}, []), "fn": orders_overview},
+    "woo_abandoned_checkouts": {**_sch(
+        "woo_abandoned_checkouts",
+        "מציג עגלות נטושות — הזמנות pending/failed ישנות מ-2 שעות עם פרטי קשר של לקוח. השתמש כשנועם רוצה לשחזר עגלות.",
+        {"hours_old": {"type": "integer", "description": "מינימום גיל בשעות, ברירת מחדל 2"}}, []),
+        "fn": abandoned_checkouts},
     "woo_list_orders": {**_sch(
         "woo_list_orders",
         "מציג הזמנות מ-Israstore. status: pending/processing/on-hold/completed/cancelled/refunded. השאר ריק לכל ההזמנות האחרונות.",

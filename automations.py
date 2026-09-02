@@ -43,6 +43,19 @@ def evening_summary() -> None:
     send_to_phone(BOT_OWNER_PHONE, f"🌙 *סיכום יום*\n\n{text}")
 
 
+def abandoned_carts_check() -> None:
+    text = _ask_agent(
+        "[אוטומציה — עגלות נטושות] בדוק עגלות נטושות (woo_abandoned_checkouts). "
+        "אם אין — אל תשלח כלום, תחזיר בדיוק את המילה SKIP. "
+        "אם יש — לכל עגלה הכן טיוטת הודעת שחזור קצרה ואדיבה בוואטסאפ ללקוח "
+        "(מזכירה את הפריט, אולי שאלה אם צריך עזרה, בלי הנחה אלא אם אני מאשר). "
+        "הצג לי את הרשימה + הטיוטות. אני אאשר מה לשלוח. " + _FMT
+    )
+    if text.strip().upper().startswith("SKIP"):
+        return
+    send_to_phone(BOT_OWNER_PHONE, f"🛒 *עגלות נטושות*\n\n{text}")
+
+
 def register(scheduler) -> None:
     """Add the recurring automation jobs (idempotent — replace_existing)."""
     scheduler.add_job(
@@ -52,4 +65,10 @@ def register(scheduler) -> None:
     scheduler.add_job(
         evening_summary, CronTrigger(hour=22, minute=0, timezone=BOT_TIMEZONE),
         id="evening_summary", replace_existing=True, misfire_grace_time=3600,
+    )
+    # abandoned cart sweep 3x/day
+    scheduler.add_job(
+        abandoned_carts_check,
+        CronTrigger(hour="12,17,21", minute=30, timezone=BOT_TIMEZONE),
+        id="abandoned_carts", replace_existing=True, misfire_grace_time=3600,
     )
