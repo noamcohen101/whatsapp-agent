@@ -74,7 +74,7 @@
       "implementation_note": "wa-build: לזהות typeMessage audioMessage/voiceMessage, להוריד את הקובץ מ-Green API, לתמלל (Whisper או שירות דומה, עברית), ואז להזרים את הטקסט ל-LLM. רצוי גם לאשר בחזרה מה הובן אם הפעולה רגישה."
     }
   },
-  "tools": ["reminders", "google_calendar", "gmail", "whatsapp_groups"],
+  "tools": ["reminders", "google_calendar", "gmail", "web_search", "whatsapp_groups"],
   "tools_config": {
     "reminders": { "proactive": true },
     "google_calendar": {

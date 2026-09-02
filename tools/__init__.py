@@ -28,3 +28,9 @@ if "gmail" in SPEC.get("tools", []):
     from tools.gmail import TOOLS as _gmail_tools
 
     _register(_gmail_tools)
+
+# --- Web search (keyless) ---
+if "web_search" in SPEC.get("tools", []):
+    from tools.web_search import TOOLS as _web_tools
+
+    _register(_web_tools)
