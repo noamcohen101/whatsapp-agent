@@ -1,6 +1,6 @@
-"""Gmail tool (read-only): search / read / summarize the user's inbox."""
+"""Gmail tool: search / read / summarize + draft & send (send requires Noam's approval)."""
 import base64
-from email.utils import parsedate_to_datetime
+from email.message import EmailMessage
 
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
@@ -83,6 +83,33 @@ def get_email(message_id: str) -> str:
     return f"מאת: {frm}\nנושא: {subj}\nתאריך: {date}\n\n{body}"
 
 
+def _raw(to: str, subject: str, body: str) -> str:
+    msg = EmailMessage()
+    msg["To"] = to
+    msg["Subject"] = subject
+    msg.set_content(body)
+    return base64.urlsafe_b64encode(msg.as_bytes()).decode()
+
+
+def create_draft(to: str, subject: str, body: str) -> str:
+    svc = _service()
+    d = (
+        svc.users()
+        .drafts()
+        .create(userId="me", body={"message": {"raw": _raw(to, subject, body)}})
+        .execute()
+    )
+    return f"נוצרה טיוטה (id {d['id']}) אל {to} — נושא: {subject}"
+
+
+def send_email(to: str, subject: str, body: str) -> str:
+    svc = _service()
+    r = svc.users().messages().send(
+        userId="me", body={"raw": _raw(to, subject, body)}
+    ).execute()
+    return f"נשלח מייל אל {to} — נושא: {subject} (id {r['id']})"
+
+
 TOOLS = {
     "search_emails": {
         "schema": {
@@ -114,5 +141,41 @@ TOOLS = {
             },
         },
         "fn": get_email,
+    },
+    "create_email_draft": {
+        "schema": {
+            "name": "create_email_draft",
+            "description": "יוצר טיוטת מייל בתיבה של נועם (לא שולח). טוב כשרוצים שנועם יבדוק לפני.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "to": {"type": "string", "description": "כתובת הנמען"},
+                    "subject": {"type": "string", "description": "נושא"},
+                    "body": {"type": "string", "description": "גוף המייל"},
+                },
+                "required": ["to", "subject", "body"],
+            },
+        },
+        "fn": create_draft,
+    },
+    "send_email": {
+        "schema": {
+            "name": "send_email",
+            "description": (
+                "שולח מייל מהתיבה של נועם. דורש אישור מפורש מנועם לפני קריאה — "
+                "תמיד הצג לו את הנמען, הנושא והגוף המלא, וחכה ל'כן' לפני שליחה. "
+                "אל תשלח מיילים שכוללים התחייבות כספית, מו\"מ, תלונה, נושא משפטי או הבטחה בשם העסק — בזה תיצור טיוטה."
+            ),
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "to": {"type": "string", "description": "כתובת הנמען"},
+                    "subject": {"type": "string", "description": "נושא"},
+                    "body": {"type": "string", "description": "גוף המייל"},
+                },
+                "required": ["to", "subject", "body"],
+            },
+        },
+        "fn": send_email,
     },
 }
