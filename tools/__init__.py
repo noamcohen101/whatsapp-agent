@@ -17,6 +17,11 @@ if "reminders" in SPEC.get("tools", []):
 
     _register(_reminder_tools)
 
+# --- Semantic memory (always on) ---
+from tools.memory import TOOLS as _memory_tools
+
+_register(_memory_tools)
+
 # --- Google Calendar ---
 if "google_calendar" in SPEC.get("tools", []):
     from tools.google_calendar import TOOLS as _calendar_tools

@@ -22,7 +22,12 @@ def _tools_section(tool_registry: dict) -> str:
     return "\n".join(lines)
 
 
-def build_system_prompt(spec: dict, tool_registry: dict, context: str = "private") -> str:
+def build_system_prompt(
+    spec: dict,
+    tool_registry: dict,
+    context: str = "private",
+    memories: list[dict] | None = None,
+) -> str:
     ident = spec["identity"]
     comm = spec.get("communication_style", {})
     phil = spec.get("operating_philosophy", {})
@@ -167,6 +172,17 @@ FYI = {interruption.get('FYI', '')}
     # --- Language quality ---
     p.append("""## עברית
 כתוב עברית תקנית, טבעית וזורמת. בלי שגיאות תחביר, בלי מילים באנגלית או בסינית באמצע משפט (חוץ ממונחים מקצועיים מקובלים כמו "processing" בהקשר הזמנות). קרא את התשובה לעצמך לפני ששולח — אם משפט נשמע עקום, תקן.""")
+
+    # --- Accumulated semantic memory (private context only) ---
+    if context != "group" and memories:
+        lines = ["## זיכרון מצטבר — מה שאתה יודע על נועם ועל העסק (עדכן דרך הכלי remember)"]
+        for m in memories:
+            lines.append(f"- (#{m['id']}, {m['category']}) {m['content']}")
+        lines.append(
+            "השתמש במידע הזה כדי לא לשאול שוב דברים שכבר ידועים. "
+            "כשאתה לומד עובדה חדשה קבועה — קרא ל-remember. כשנועם אומר 'תשכח' — קרא ל-forget."
+        )
+        p.append("\n".join(lines))
 
     p.append(f"## הכלים שלך\n{_tools_section(tool_registry)}")
 

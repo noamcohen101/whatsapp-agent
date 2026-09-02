@@ -66,7 +66,10 @@ def handle_message(
 ) -> str:
     """images: list of (media_type, base64_data) for vision. context: 'private' | 'group'."""
     registry = _active_tools(context)
-    system_prompt = build_system_prompt(SPEC, registry, context=context)
+    memories = database.all_memories() if context != "group" else None
+    system_prompt = build_system_prompt(
+        SPEC, registry, context=context, memories=memories
+    )
 
     history = database.tail(chat_id)
     messages: list[dict] = [{"role": m["role"], "content": m["content"]} for m in history]

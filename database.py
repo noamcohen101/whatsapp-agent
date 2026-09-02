@@ -42,6 +42,37 @@ def init_db() -> None:
             )
             """
         )
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS memories (
+                id         BIGSERIAL PRIMARY KEY,
+                category   TEXT NOT NULL DEFAULT 'general',
+                content    TEXT NOT NULL,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+            """
+        )
+
+
+def add_memory(content: str, category: str = "general") -> int:
+    with _conn() as c, c.cursor() as cur:
+        cur.execute(
+            "INSERT INTO memories (category, content) VALUES (%s, %s) RETURNING id",
+            (category, content),
+        )
+        return cur.fetchone()[0]
+
+
+def all_memories() -> list[dict]:
+    with _conn() as c, c.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+        cur.execute("SELECT id, category, content FROM memories ORDER BY id")
+        return [dict(r) for r in cur.fetchall()]
+
+
+def delete_memory(memory_id: int) -> bool:
+    with _conn() as c, c.cursor() as cur:
+        cur.execute("DELETE FROM memories WHERE id = %s", (memory_id,))
+        return cur.rowcount > 0
 
 
 def already_processed(id_message: str) -> bool:

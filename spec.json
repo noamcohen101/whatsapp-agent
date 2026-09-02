@@ -89,7 +89,8 @@
     "gmail",
     "web_search",
     "whatsapp_groups",
-    "woocommerce"
+    "woocommerce",
+    "memory"
   ],
   "tools_config": {
     "reminders": {
@@ -113,7 +114,10 @@
     "whatsapp_groups": {
       "respond_in_group": true,
       "allowed_groups": [
-        { "name": "Israstore בעזרת ה חוזרת ובענק!", "chat_id": "120363408234829377@g.us" }
+        {
+          "name": "Israstore בעזרת ה חוזרת ובענק!",
+          "chat_id": "120363408234829377@g.us"
+        }
       ],
       "group_tool_policy": "בקבוצה: מותר עוזר כללי + חיפוש אינטרנט + נתוני Israstore לקריאה (הזמנות/מכירות/מלאי/לקוחות). אסור: עדכוני מוצר/קופונים, יומן, מיילים, תזכורות אישיות של נועם. אין לחשוף מידע אישי של נועם."
     }
