@@ -31,9 +31,12 @@ _ALLOWED_GROUPS = {
 async def lifespan(app: FastAPI):
     database.init_db()
     if "reminders" in SPEC.get("tools", []):
-        from tools.reminders import start_scheduler
+        from tools.reminders import scheduler, start_scheduler
 
         start_scheduler()
+        import automations
+
+        automations.register(scheduler)
     yield
 
 
