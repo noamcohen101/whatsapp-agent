@@ -253,19 +253,24 @@ def abandoned_carts_check() -> None:
 
 def register(scheduler) -> None:
     """Add the recurring automation jobs (idempotent — replace_existing)."""
-    scheduler.add_job(
-        morning_brief, CronTrigger(hour=10, minute=0, timezone=BOT_TIMEZONE),
-        id="morning_brief", replace_existing=True, misfire_grace_time=3600,
-    )
-    # business health check — every morning before the brief
-    scheduler.add_job(
-        business_health_check, CronTrigger(hour=9, minute=30, timezone=BOT_TIMEZONE),
-        id="business_health", replace_existing=True, misfire_grace_time=3600,
-    )
-    scheduler.add_job(
-        evening_summary, CronTrigger(hour=22, minute=0, timezone=BOT_TIMEZONE),
-        id="evening_summary", replace_existing=True, misfire_grace_time=3600,
-    )
+    from op_cycle import operating_cycle
+
+    # Retired jobs — folded into the autonomous operating cycle.
+    for old in ("morning_brief", "business_health", "evening_summary",
+                "inbox_watch", "follow_up_sweep"):
+        try:
+            scheduler.remove_job(old)
+        except Exception:  # noqa: BLE001
+            pass
+
+    # --- The autonomous operating cycle: 3x/day ---
+    for slot, hh in (("morning", 9), ("midday", 14), ("evening", 21)):
+        scheduler.add_job(
+            operating_cycle, CronTrigger(hour=hh, minute=30, timezone=BOT_TIMEZONE),
+            id=f"operating_cycle_{slot}", args=[slot],
+            replace_existing=True, misfire_grace_time=3600,
+        )
+
     # abandoned cart sweep — once a day
     scheduler.add_job(
         abandoned_carts_check,
@@ -325,18 +330,6 @@ def register(scheduler) -> None:
         cost_report,
         CronTrigger(day_of_week="sun", hour=20, minute=0, timezone=BOT_TIMEZONE),
         id="cost_report", replace_existing=True, misfire_grace_time=7200,
-    )
-    # inbox watch — 3x/day
-    scheduler.add_job(
-        inbox_watch,
-        CronTrigger(hour="11,15,19", minute=5, timezone=BOT_TIMEZONE),
-        id="inbox_watch", replace_existing=True, misfire_grace_time=1800,
-    )
-    # follow-up sweep — twice a day
-    scheduler.add_job(
-        follow_up_sweep,
-        CronTrigger(hour="10,18", minute=45, timezone=BOT_TIMEZONE),
-        id="follow_up_sweep", replace_existing=True, misfire_grace_time=3600,
     )
     # reputation scan — twice a week (Sun + Wed)
     scheduler.add_job(
