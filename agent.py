@@ -35,12 +35,30 @@ def _run_tool(name: str, tool_input: dict, chat_id: str) -> str:
         return f"[שגיאה בהרצת {name}] {e}"
 
 
-def handle_message(chat_id: str, sender_phone: str, message_text: str) -> str:
+def handle_message(
+    chat_id: str,
+    sender_phone: str,
+    message_text: str,
+    images: list[tuple[str, str]] | None = None,
+) -> str:
+    """images: list of (media_type, base64_data) for vision, e.g. ('image/jpeg', '...')."""
     system_prompt = build_system_prompt(SPEC, TOOL_REGISTRY)
 
     history = database.tail(chat_id)
     messages: list[dict] = [{"role": m["role"], "content": m["content"]} for m in history]
-    messages.append({"role": "user", "content": message_text})
+
+    if images:
+        content = [
+            {
+                "type": "image",
+                "source": {"type": "base64", "media_type": mt, "data": data},
+            }
+            for mt, data in images
+        ]
+        content.append({"type": "text", "text": message_text or "מה יש בתמונה?"})
+        messages.append({"role": "user", "content": content})
+    else:
+        messages.append({"role": "user", "content": message_text})
 
     reply_text = ""
     for _ in range(_MAX_TOOL_ITERS):
@@ -79,6 +97,9 @@ def handle_message(chat_id: str, sender_phone: str, message_text: str) -> str:
     if not reply_text:
         reply_text = "קיבלתי 👑"
 
-    database.append(chat_id, "user", message_text)
+    stored = message_text
+    if images:
+        stored = f"[שלח {len(images)} תמונה/ות] {message_text}".strip()
+    database.append(chat_id, "user", stored)
     database.append(chat_id, "assistant", reply_text)
     return reply_text

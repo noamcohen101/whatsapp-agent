@@ -1,4 +1,5 @@
 """FastAPI app: Green API webhook -> agent -> reply."""
+import base64
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
@@ -48,6 +49,31 @@ def _extract_text(message_data: dict) -> str | None:
     return None
 
 
+_VISION_TYPES = {"image/jpeg", "image/png", "image/gif", "image/webp"}
+
+
+def _extract_images(message_data: dict) -> list[tuple[str, str]]:
+    """Return [(media_type, base64_data)] for an incoming image message, else []."""
+    if message_data.get("typeMessage") not in ("imageMessage", "stickerMessage"):
+        return []
+    fm = message_data.get("fileMessageData", {})
+    url = fm.get("downloadUrl")
+    if not url:
+        return []
+    media_type = (fm.get("mimeType") or "image/jpeg").split(";")[0].strip()
+    if media_type not in _VISION_TYPES:
+        media_type = "image/jpeg"
+    try:
+        raw = download_file(url)
+    except Exception as e:  # noqa: BLE001
+        print(f"[webhook] image download failed: {e}")
+        return []
+    if len(raw) > 4_500_000:  # Anthropic ~5MB/image cap, leave headroom
+        print("[webhook] image too large, skipping")
+        return []
+    return [(media_type, base64.b64encode(raw).decode())]
+
+
 def _extract_audio_url(message_data: dict) -> tuple[str, str] | None:
     t = message_data.get("typeMessage")
     if t not in ("audioMessage", "voiceMessage"):
@@ -90,6 +116,17 @@ async def webhook(request: Request):
         return {"ok": True, "skipped": "not whitelisted"}
 
     text = _extract_text(message_data)
+    images = _extract_images(message_data)
+
+    if images:
+        caption = message_data.get("fileMessageData", {}).get("caption", "")
+        try:
+            reply = agent.handle_message(chat_id, sender, text or caption, images=images)
+        except Exception as e:  # noqa: BLE001
+            print(f"[webhook] agent error (image): {e}")
+            reply = "סליחה מלך, נתקלתי בתקלה בניתוח התמונה. תנסה שוב 👑"
+        send_reply(chat_id, reply)
+        return {"ok": True, "handled": "image"}
 
     if not text:
         audio = _extract_audio_url(message_data)
