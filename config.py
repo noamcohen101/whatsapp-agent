@@ -49,11 +49,8 @@ WOO_SECRET = os.getenv("WOO_SECRET", "")
 BOT_OWNER_PHONE = _require("BOT_OWNER_PHONE").lstrip("+")
 BOT_TIMEZONE = os.getenv("BOT_TIMEZONE", "Asia/Jerusalem")
 
-# --- Storage ---
-DATABASE_PATH = os.getenv("DATABASE_PATH", "data/conversations.db")
-_db_abs = (BASE_DIR / DATABASE_PATH).resolve()
-_db_abs.parent.mkdir(parents=True, exist_ok=True)
-DATABASE_PATH = str(_db_abs)
+# --- Storage (Postgres via Supabase session pooler) ---
+DATABASE_URL = _require("DATABASE_URL")
 
 MAX_HISTORY = int(os.getenv("MAX_HISTORY", "30"))
 

@@ -5,13 +5,17 @@ from zoneinfo import ZoneInfo
 from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
 from apscheduler.schedulers.background import BackgroundScheduler
 
-from config import BOT_TIMEZONE, DATABASE_PATH
+from config import BOT_TIMEZONE, DATABASE_URL
 from tools.whatsapp import send_reply
 
 _TZ = ZoneInfo(BOT_TIMEZONE)
 
+# APScheduler's SQLAlchemy jobstore needs the driver named. Replace the scheme
+# literally so the pooler username (postgres.<project-ref>) survives intact.
+_SA_URL = DATABASE_URL.replace("postgresql://", "postgresql+psycopg2://", 1)
+
 scheduler = BackgroundScheduler(
-    jobstores={"default": SQLAlchemyJobStore(url=f"sqlite:///{DATABASE_PATH}")},
+    jobstores={"default": SQLAlchemyJobStore(url=_SA_URL)},
     timezone=BOT_TIMEZONE,
 )
 
