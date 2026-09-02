@@ -69,8 +69,9 @@ def handle_message(
     """images: list of (media_type, base64_data) for vision. context: 'private' | 'group'."""
     registry = _active_tools(context)
     memories = database.all_memories() if context != "group" else None
+    open_tasks = database.task_list("open") if context != "group" else None
     system_prompt = build_system_prompt(
-        SPEC, registry, context=context, memories=memories
+        SPEC, registry, context=context, memories=memories, open_tasks=open_tasks
     )
 
     history = database.tail(chat_id)

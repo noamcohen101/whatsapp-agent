@@ -22,6 +22,11 @@ from tools.memory import TOOLS as _memory_tools
 
 _register(_memory_tools)
 
+# --- Task Layer (always on) ---
+from tools.tasks import TOOLS as _task_tools
+
+_register(_task_tools)
+
 # --- YouTube transcript / summary (always on) ---
 from tools.youtube import TOOLS as _youtube_tools
 

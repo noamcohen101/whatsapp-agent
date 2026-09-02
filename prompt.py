@@ -27,6 +27,7 @@ def build_system_prompt(
     tool_registry: dict,
     context: str = "private",
     memories: list[dict] | None = None,
+    open_tasks: list[dict] | None = None,
 ) -> str:
     ident = spec["identity"]
     comm = spec.get("communication_style", {})
@@ -188,6 +189,23 @@ FYI = {interruption.get('FYI', '')}
         lines.append(
             "השתמש במידע הזה כדי לא לשאול שוב דברים שכבר ידועים. "
             "כשאתה לומד עובדה חדשה קבועה — קרא ל-remember. כשנועם אומר 'תשכח' — קרא ל-forget."
+        )
+        p.append("\n".join(lines))
+
+    if context != "group" and open_tasks:
+        lines = ["## משימות פתוחות (Task Layer) — עדכן דרך הכלים add_task/update_task"]
+        for t in open_tasks:
+            extra = []
+            if t.get("due"):
+                extra.append(f"עד {t['due']}")
+            if t.get("waiting_on"):
+                extra.append(f"ממתין ל-{t['waiting_on']}")
+            lines.append(
+                f"- #{t['id']} [{t['priority']}/{t['domain']}] {t['title']}"
+                + (f" ({', '.join(extra)})" if extra else "")
+            )
+        lines.append(
+            "כשמשהו נסגר או זז — עדכן דרך update_task. כשאתה מזהה next-action חדש — add_task."
         )
         p.append("\n".join(lines))
 

@@ -43,6 +43,26 @@ def evening_summary() -> None:
     send_to_phone(BOT_OWNER_PHONE, f"🌙 *סיכום יום*\n\n{text}")
 
 
+def weekly_review() -> None:
+    text = _ask_agent(
+        "[אוטומציה — סקירה שבועית] סכם לי את השבוע: מה נסגר (משימות done, הזמנות), "
+        "מה נשאר פתוח וחשוב (list_tasks), מה נדחה שוב ושוב, ומה 3 הדברים הכי חשובים לשבוע הבא. "
+        "אם אתה רואה דפוס (למשל 'שוב דחית החלטת מחיר') — תגיד לי אותו ישר. " + _FMT
+    )
+    send_to_phone(BOT_OWNER_PHONE, f"🗓️ *סקירה שבועית*\n\n{text}")
+
+
+def reputation_scan() -> None:
+    text = _ask_agent(
+        "[אוטומציה — מוניטין] חפש (web_search) אזכורים חדשים של 'Israstore' / 'israstore.shop' — "
+        "ביקורות, פוסטים, תלונות, המלצות. דווח רק אם מצאת משהו חדש שדורש תשומת לב "
+        "(במיוחד שלילי). אם אין כלום חדש — החזר בדיוק SKIP. " + _FMT
+    )
+    if text.strip().upper().startswith("SKIP"):
+        return
+    send_to_phone(BOT_OWNER_PHONE, f"📣 *מוניטין*\n\n{text}")
+
+
 def business_health_check() -> None:
     text = _ask_agent(
         "[אוטומציה — בריאות עסק] בדוק שהכל תקין ב-Israstore: "
@@ -136,4 +156,16 @@ def register(scheduler) -> None:
         shipment_updates,
         CronTrigger(hour="9,19", minute=15, timezone=BOT_TIMEZONE),
         id="shipment_updates", replace_existing=True, misfire_grace_time=3600,
+    )
+    # weekly review — Friday morning (day_of_week: 4 = Friday)
+    scheduler.add_job(
+        weekly_review,
+        CronTrigger(day_of_week="fri", hour=9, minute=0, timezone=BOT_TIMEZONE),
+        id="weekly_review", replace_existing=True, misfire_grace_time=7200,
+    )
+    # reputation scan — once a day
+    scheduler.add_job(
+        reputation_scan,
+        CronTrigger(hour=13, minute=0, timezone=BOT_TIMEZONE),
+        id="reputation_scan", replace_existing=True, misfire_grace_time=7200,
     )

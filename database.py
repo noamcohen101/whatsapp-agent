@@ -100,6 +100,66 @@ def update_shipment_status(shipment_id: int, status: str, deactivate: bool = Fal
         )
 
 
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS tasks (
+                id           BIGSERIAL PRIMARY KEY,
+                title        TEXT NOT NULL,
+                domain       TEXT DEFAULT 'general',
+                status       TEXT DEFAULT 'open',
+                priority     TEXT DEFAULT 'normal',
+                due          TEXT DEFAULT '',
+                waiting_on   TEXT DEFAULT '',
+                next_action  TEXT DEFAULT '',
+                source       TEXT DEFAULT '',
+                notes        TEXT DEFAULT '',
+                created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+            """
+        )
+
+
+def task_add(title, domain="general", priority="normal", due="", next_action="",
+             waiting_on="", source="", notes="") -> str:
+    with _conn() as c, c.cursor() as cur:
+        cur.execute(
+            """INSERT INTO tasks (title, domain, priority, due, next_action, waiting_on, source, notes)
+               VALUES (%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id""",
+            (title, domain, priority, due, next_action, waiting_on, source, notes),
+        )
+        return str(cur.fetchone()[0])
+
+
+def task_list(status="open", domain="") -> list[dict]:
+    q = "SELECT * FROM tasks WHERE 1=1"
+    params: list = []
+    if status and status != "all":
+        q += " AND status = %s"
+        params.append(status)
+    if domain:
+        q += " AND domain = %s"
+        params.append(domain)
+    q += " ORDER BY CASE priority WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 WHEN 'normal' THEN 2 ELSE 3 END, id"
+    with _conn() as c, c.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+        cur.execute(q, params)
+        return [dict(r) for r in cur.fetchall()]
+
+
+def task_update(task_id: int, **fields) -> bool:
+    allowed = {"title", "domain", "status", "priority", "due", "waiting_on", "next_action", "notes"}
+    sets = {k: v for k, v in fields.items() if k in allowed and v is not None and v != ""}
+    if not sets:
+        return False
+    cols = ", ".join(f"{k} = %s" for k in sets)
+    with _conn() as c, c.cursor() as cur:
+        cur.execute(
+            f"UPDATE tasks SET {cols}, updated_at = NOW() WHERE id = %s",
+            [*sets.values(), task_id],
+        )
+        return cur.rowcount > 0
+
+
 def add_memory(content: str, category: str = "general") -> int:
     with _conn() as c, c.cursor() as cur:
         cur.execute(
