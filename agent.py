@@ -15,6 +15,8 @@ _MAX_TOOL_ITERS = 5
 _GROUP_ALLOWED_TOOLS = {
     "web_search",
     "fetch_page",
+    "youtube_transcript",
+    "compare_competitor_prices",
     "woo_orders_overview",
     "woo_list_orders",
     "woo_get_order",

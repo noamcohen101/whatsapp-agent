@@ -22,6 +22,11 @@ from tools.memory import TOOLS as _memory_tools
 
 _register(_memory_tools)
 
+# --- YouTube transcript / summary (always on) ---
+from tools.youtube import TOOLS as _youtube_tools
+
+_register(_youtube_tools)
+
 # --- Google Calendar ---
 if "google_calendar" in SPEC.get("tools", []):
     from tools.google_calendar import TOOLS as _calendar_tools
