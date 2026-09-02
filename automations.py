@@ -43,6 +43,19 @@ def evening_summary() -> None:
     send_to_phone(BOT_OWNER_PHONE, f"🌙 *סיכום יום*\n\n{text}")
 
 
+def business_health_check() -> None:
+    text = _ask_agent(
+        "[אוטומציה — בריאות עסק] בדוק שהכל תקין ב-Israstore: "
+        "1) fetch_page על https://israstore.shop — האתר עולה ותקין? "
+        "2) woo_orders_overview — יש קפיצה חריגה ב-failed/cancelled? "
+        "3) woo_list_products low_stock_only=true — מלאי קריטי? "
+        "4) הזמנות pending ישנות (מעל יומיים)? "
+        "5) מיילים מ-PayPal/אשראי/ספק ב-24 שעות אחרונות שדורשים טיפול? "
+        "החזר: '✅ הכל תקין' אם אין בעיות, אחרת רשימת הבעיות לפי דחיפות. " + _FMT
+    )
+    send_to_phone(BOT_OWNER_PHONE, f"🩺 *בדיקת בריאות עסק*\n\n{text}")
+
+
 def competitor_price_watch() -> None:
     from tools.competitors import israstore_top_sellers
 
@@ -97,6 +110,11 @@ def register(scheduler) -> None:
     scheduler.add_job(
         morning_brief, CronTrigger(hour=10, minute=0, timezone=BOT_TIMEZONE),
         id="morning_brief", replace_existing=True, misfire_grace_time=3600,
+    )
+    # business health check — every morning before the brief
+    scheduler.add_job(
+        business_health_check, CronTrigger(hour=9, minute=30, timezone=BOT_TIMEZONE),
+        id="business_health", replace_existing=True, misfire_grace_time=3600,
     )
     scheduler.add_job(
         evening_summary, CronTrigger(hour=22, minute=0, timezone=BOT_TIMEZONE),
