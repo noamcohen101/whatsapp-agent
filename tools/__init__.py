@@ -23,6 +23,8 @@ if "google_calendar" in SPEC.get("tools", []):
 
     _register(_calendar_tools)
 
-# --- External tools are added here by wa-connect, e.g.:
-# from tools.gmail import TOOLS as _gmail_tools
-# _register(_gmail_tools)
+# --- Gmail (read-only) ---
+if "gmail" in SPEC.get("tools", []):
+    from tools.gmail import TOOLS as _gmail_tools
+
+    _register(_gmail_tools)
