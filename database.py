@@ -57,6 +57,17 @@ def init_db() -> None:
         )
         cur.execute(
             """
+            CREATE TABLE IF NOT EXISTS standing_approvals (
+                id         BIGSERIAL PRIMARY KEY,
+                rule       TEXT NOT NULL,
+                expires_at TIMESTAMPTZ,
+                active     BOOLEAN DEFAULT TRUE,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+            """
+        )
+        cur.execute(
+            """
             CREATE TABLE IF NOT EXISTS llm_usage (
                 id            BIGSERIAL PRIMARY KEY,
                 model         TEXT NOT NULL,
@@ -254,6 +265,30 @@ def settings_all() -> dict:
     with _conn() as c, c.cursor() as cur:
         cur.execute("SELECT key, value FROM settings")
         return dict(cur.fetchall())
+
+
+def approval_add(rule: str, expires_at=None) -> str:
+    with _conn() as c, c.cursor() as cur:
+        cur.execute(
+            "INSERT INTO standing_approvals (rule, expires_at) VALUES (%s,%s) RETURNING id",
+            (rule, expires_at),
+        )
+        return str(cur.fetchone()[0])
+
+
+def approval_list() -> list[dict]:
+    with _conn() as c, c.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+        cur.execute(
+            "SELECT id, rule, expires_at FROM standing_approvals "
+            "WHERE active AND (expires_at IS NULL OR expires_at > NOW()) ORDER BY id"
+        )
+        return [dict(r) for r in cur.fetchall()]
+
+
+def approval_revoke(approval_id: int) -> bool:
+    with _conn() as c, c.cursor() as cur:
+        cur.execute("UPDATE standing_approvals SET active = FALSE WHERE id = %s", (approval_id,))
+        return cur.rowcount > 0
 
 
 def audit_log(action: str, detail: str = "", context: str = "private", actor: str = "bot") -> None:

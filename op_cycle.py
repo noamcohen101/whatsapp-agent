@@ -11,6 +11,10 @@ _LABEL = {"morning": "☀️ בוקר", "midday": "🕑 צהריים", "evening"
 
 def operating_cycle(slot: str = "midday") -> None:
     import agent
+    import database
+
+    if database.setting_get("safety_state", "normal") == "paused":
+        return
 
     when = _LABEL.get(slot, "סבב")
     instruction = f"""[מנוע תפעול אוטונומי — סבב {when}]

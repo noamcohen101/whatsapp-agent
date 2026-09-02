@@ -56,9 +56,23 @@ _AUDITED = {
 }
 
 
+# tools that never change the world — allowed even in read_only
+_READ_ONLY_SAFE = {
+    "set_safety_state", "get_safety_state", "list_standing_approvals",
+    "list_tasks", "list_memories", "list_decisions", "list_experiments",
+    "what_i_did", "llm_cost", "revenue_pace", "profit_analysis", "growth_snapshot",
+    "customer_segments", "scan_subscriptions",
+}
+
+
 def _run_tool(name: str, tool_input: dict, chat_id: str, registry: dict, context: str = "private") -> str:
     if name not in registry:
         return f"[שגיאה] הכלי '{name}' לא זמין בהקשר הזה."
+    state = database.setting_get("safety_state", "normal")
+    if state == "paused":
+        return "[הבוט במצב מושהה] תגיד 'חזור לפעילות' כדי להפעיל."
+    if state == "read_only" and name in _AUDITED and name not in _READ_ONLY_SAFE:
+        return f"[מצב קריאה בלבד] לא מבצע את {name}. תגיד 'חזור לפעילות' כדי לאפשר."
     args = dict(tool_input or {})
     if name in FRAMEWORK_INJECTED_CHAT_ID:
         args["chat_id"] = chat_id
@@ -85,7 +99,14 @@ def handle_message(
     registry = _active_tools(context)
     memories = database.all_memories() if context != "group" else None
     open_tasks = database.task_list("open") if context != "group" else None
-    settings = database.settings_all() if context != "group" else None
+    settings = None
+    if context != "group":
+        settings = database.settings_all()
+        appr = database.approval_list()
+        if appr:
+            settings["_standing_approvals"] = "\n".join(
+                f"- {a['rule']}" for a in appr
+            )
     system_prompt = build_system_prompt(
         SPEC, registry, context=context, memories=memories,
         open_tasks=open_tasks, settings=settings,
