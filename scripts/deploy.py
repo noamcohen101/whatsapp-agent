@@ -1,7 +1,6 @@
-"""Trigger a Render deploy of the current main branch and wait for it to go live.
+"""Wait for the latest Render deploy to go live (GitHub push auto-triggers it).
 
-Render auto-deploy is OFF for this service (repo connected as public URL, not via
-GitHub app), so every code push needs a manual deploy. Run after `git push`.
+Run after `git push`. If no fresh deploy appears within ~30s it triggers one.
 
 Usage:  .venv/Scripts/python.exe scripts/deploy.py
 """
@@ -22,6 +21,7 @@ for line in (BASE / ".env").read_text(encoding="utf-8").splitlines():
 
 RK = env["RENDER_API_KEY"]
 SID = env.get("RENDER_SERVICE_ID", "srv-dabib3ks728c73a0sq3g")
+HEAD = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=BASE, text=True).strip()
 
 
 def api(method, path, body=None):
@@ -33,45 +33,43 @@ def api(method, path, body=None):
     req.add_header("Authorization", "Bearer " + RK)
     req.add_header("Content-Type", "application/json")
     with urllib.request.urlopen(req) as r:
-        return json.loads(r.read().decode() or "{}")
+        raw = r.read().decode()
+    return json.loads(raw) if raw.strip() else {}
 
 
-HEAD = subprocess.check_output(
-    ["git", "rev-parse", "HEAD"], cwd=BASE, text=True
-).strip()
-print(f"deploying commit {HEAD[:8]}")
+def latest():
+    d = api("GET", f"/services/{SID}/deploys?limit=1")[0]["deploy"]
+    return d["status"], (d.get("commit") or {}).get("id", "")
 
 
-def run_once():
-    dep = api(
-        "POST",
-        f"/services/{SID}/deploys",
-        {"commitId": HEAD, "clearCache": "do_not_clear"},
-    )
-    dep_id = dep["id"]
-    print(f"triggered {dep_id} commit={dep.get('commit', {}).get('id', '')[:8]}")
-    for _ in range(40):
-        status = api("GET", f"/services/{SID}/deploys/{dep_id}")["status"]
-        print(" ", status)
+print(f"HEAD {HEAD[:8]}")
+triggered = False
+for i in range(60):
+    status, commit = latest()
+    print(f"  [{i}] {status} {commit[:8]}")
+    if commit.startswith(HEAD[:8]) or HEAD[:8].startswith(commit[:8]):
         if status == "live":
-            return "live"
+            print("LIVE")
+            sys.exit(0)
         if any(x in status for x in ("failed", "canceled", "deactivated")):
-            return status
-        time.sleep(15)
-    return "timeout"
+            if not triggered:
+                print("failed once, retriggering...")
+                try:
+                    api("POST", f"/services/{SID}/deploys", {"commitId": HEAD})
+                except Exception:
+                    pass
+                triggered = True
+            else:
+                print("DEPLOY FAILED")
+                sys.exit(1)
+    elif i >= 2 and not triggered:
+        print("no auto-deploy for HEAD, triggering...")
+        try:
+            api("POST", f"/services/{SID}/deploys", {"commitId": HEAD})
+        except Exception:
+            pass
+        triggered = True
+    time.sleep(15)
 
-
-# Anonymous git clone on Render fails transiently (GitHub rate-limits it).
-# Retry a failed build up to 3 times before giving up.
-for attempt in range(1, 4):
-    result = run_once()
-    if result == "live":
-        print("LIVE")
-        sys.exit(0)
-    print(f"attempt {attempt} ended: {result}")
-    if attempt < 3:
-        print("retrying...")
-        time.sleep(5)
-
-print("DEPLOY FAILED after 3 attempts")
+print("timeout")
 sys.exit(1)
