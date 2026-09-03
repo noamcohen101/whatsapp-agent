@@ -54,7 +54,7 @@ BOT_TIMEZONE = os.getenv("BOT_TIMEZONE", "Asia/Jerusalem")
 # --- Storage (Postgres via Supabase session pooler) ---
 DATABASE_URL = _require("DATABASE_URL")
 
-MAX_HISTORY = int(os.getenv("MAX_HISTORY", "30"))
+MAX_HISTORY = int(os.getenv("MAX_HISTORY", "14"))
 
 APP_VERSION = 1
 

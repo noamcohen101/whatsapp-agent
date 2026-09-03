@@ -4,7 +4,7 @@ from google.genai import types
 
 import database
 from config import GEMINI_API_KEY, LLM_CHEAP_MODEL, LLM_MODEL, LLM_VISION_MODEL, SPEC
-from prompt import build_system_prompt
+from prompt import dynamic_block, static_prompt
 from tools import TOOL_REGISTRY
 
 _client = genai.Client(api_key=GEMINI_API_KEY)
@@ -112,23 +112,27 @@ def handle_message(
     images=None, context="private", sender_name="", cheap_model=False,
 ) -> str:
     registry = _active_tools(context, chat_id)
-    memories = database.all_memories() if context != "group" else None
-    open_tasks = database.task_list("open") if context != "group" else None
-    settings = None
+    group_info = _GROUP_INFO.get(chat_id) if context == "group" else None
+    system_prompt = static_prompt(SPEC, context, group_info)
+
+    dyn = ""
     if context != "group":
         settings = database.settings_all()
         appr = database.approval_list()
         if appr:
             settings["_standing_approvals"] = "\n".join(f"- {a['rule']}" for a in appr)
-
-    group_info = _GROUP_INFO.get(chat_id) if context == "group" else None
-    system_prompt = build_system_prompt(
-        SPEC, registry, context=context, memories=memories,
-        open_tasks=open_tasks, settings=settings, group_info=group_info,
-    )
+        dyn = dynamic_block(
+            database.all_memories(),
+            database.task_list("open"),
+            database.project_list("active"),
+            settings,
+        )
 
     # history -> Gemini contents
     contents = []
+    if dyn:
+        contents.append(types.Content(role="user", parts=[types.Part(text=dyn)]))
+        contents.append(types.Content(role="model", parts=[types.Part(text="קיבלתי את ההקשר. 👑")]))
     for m in database.tail(chat_id):
         role = "model" if m["role"] == "assistant" else "user"
         contents.append(types.Content(role=role, parts=[types.Part(text=m["content"])]))
