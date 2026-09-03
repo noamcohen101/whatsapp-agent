@@ -150,7 +150,8 @@ def handle_message(
 
     if images:
         model = LLM_VISION_MODEL
-    elif cheap_model:
+    elif cheap_model or context == "group":
+        # groups are chatty and casual — the lite model has its own, larger quota
         model = LLM_CHEAP_MODEL
     else:
         model = LLM_MODEL
@@ -170,16 +171,31 @@ def handle_message(
         automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
     )
 
+    import time as _time
+
     reply_text = ""
     for _ in range(_MAX_TOOL_ITERS):
-        try:
-            resp = _client.models.generate_content(model=model, contents=contents, config=cfg)
-        except Exception as e:  # noqa: BLE001
-            es = str(e)
-            if "RESOURCE_EXHAUSTED" in es or "429" in es:
-                return "רגע מלך, יש עומס על המערכת (מכסה יומית). נסה שוב עוד כמה דקות 👑"
-            print(f"[agent] Gemini error: {es[:300]}")
-            return "סליחה מלך, נתקלתי בתקלה. תנסה שוב עוד רגע 👑"
+        resp = None
+        for attempt in range(4):
+            try:
+                resp = _client.models.generate_content(
+                    model=model, contents=contents, config=cfg
+                )
+                break
+            except Exception as e:  # noqa: BLE001
+                es = str(e)
+                retryable = any(
+                    x in es for x in ("RESOURCE_EXHAUSTED", "429", "503", "UNAVAILABLE", "500")
+                )
+                if retryable and attempt < 3:
+                    _time.sleep(2 + attempt * 3)
+                    continue
+                if "RESOURCE_EXHAUSTED" in es or "429" in es:
+                    return "רגע מלך, יש עומס רגעי. תכתוב לי שוב עוד דקה 👑"
+                print(f"[agent] Gemini error: {es[:300]}")
+                return "סליחה מלך, נתקלתי בתקלה. תנסה שוב עוד רגע 👑"
+        if resp is None:
+            return "רגע מלך, יש עומס רגעי. תכתוב לי שוב עוד דקה 👑"
         try:
             u = resp.usage_metadata
             database.usage_log(model, u.prompt_token_count or 0, u.candidates_token_count or 0)
