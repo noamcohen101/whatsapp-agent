@@ -10,11 +10,22 @@ from tools import TOOL_REGISTRY
 _client = genai.Client(api_key=GEMINI_API_KEY)
 _MAX_TOOL_ITERS = 6
 
-# In a group chat the bot is a shared assistant — only these tools are exposed.
-_GROUP_ALLOWED_TOOLS = {
-    "web_search", "fetch_page", "youtube_transcript", "compare_competitor_prices",
+# Per-group tool policies. 'general' groups get web/knowledge only; 'business'
+# groups also get Israstore read tools. Never personal data / write actions.
+_GROUP_TOOLS_GENERAL = {"web_search", "fetch_page", "youtube_transcript"}
+_GROUP_TOOLS_BUSINESS = _GROUP_TOOLS_GENERAL | {
+    "compare_competitor_prices",
     "woo_orders_overview", "woo_list_orders", "woo_get_order",
     "woo_list_products", "woo_get_product", "woo_sales_summary", "woo_list_customers",
+}
+
+_GROUP_POLICY = {
+    g["chat_id"]: g.get("policy", "general")
+    for g in SPEC.get("tools_config", {}).get("whatsapp_groups", {}).get("allowed_groups", [])
+}
+_GROUP_INFO = {
+    g["chat_id"]: g
+    for g in SPEC.get("tools_config", {}).get("whatsapp_groups", {}).get("allowed_groups", [])
 }
 
 FRAMEWORK_INJECTED_CHAT_ID = {"create_reminder", "list_reminders", "cancel_reminder"}
@@ -35,9 +46,11 @@ _READ_ONLY_SAFE = {
 }
 
 
-def _active_tools(context: str) -> dict:
+def _active_tools(context: str, chat_id: str = "") -> dict:
     if context == "group":
-        return {k: v for k, v in TOOL_REGISTRY.items() if k in _GROUP_ALLOWED_TOOLS}
+        policy = _GROUP_POLICY.get(chat_id, "general")
+        allowed = _GROUP_TOOLS_BUSINESS if policy == "business" else _GROUP_TOOLS_GENERAL
+        return {k: v for k, v in TOOL_REGISTRY.items() if k in allowed}
     return TOOL_REGISTRY
 
 
@@ -98,7 +111,7 @@ def handle_message(
     chat_id, sender_phone, message_text,
     images=None, context="private", sender_name="", cheap_model=False,
 ) -> str:
-    registry = _active_tools(context)
+    registry = _active_tools(context, chat_id)
     memories = database.all_memories() if context != "group" else None
     open_tasks = database.task_list("open") if context != "group" else None
     settings = None
@@ -108,9 +121,10 @@ def handle_message(
         if appr:
             settings["_standing_approvals"] = "\n".join(f"- {a['rule']}" for a in appr)
 
+    group_info = _GROUP_INFO.get(chat_id) if context == "group" else None
     system_prompt = build_system_prompt(
         SPEC, registry, context=context, memories=memories,
-        open_tasks=open_tasks, settings=settings,
+        open_tasks=open_tasks, settings=settings, group_info=group_info,
     )
 
     # history -> Gemini contents
