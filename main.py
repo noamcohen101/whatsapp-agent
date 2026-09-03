@@ -2,7 +2,7 @@
 import base64
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Request
+from fastapi import BackgroundTasks, FastAPI, Request
 
 import agent
 import database
@@ -96,18 +96,20 @@ def _extract_audio_url(message_data: dict) -> tuple[str, str] | None:
 
 
 @app.post("/webhook/green-api")
-async def webhook(request: Request):
+async def webhook(request: Request, bg: BackgroundTasks):
     body = await request.json()
+    if body.get("typeWebhook") == "incomingMessageReceived":
+        # Heavy work (transcribe, LLM, tool calls) runs off the event loop
+        # so /health and other requests are never blocked.
+        bg.add_task(_handle, body)
+    return {"ok": True}
 
-    tw = body.get("typeWebhook")
-    if tw != "incomingMessageReceived":
-        print(f"[webhook] skip: typeWebhook={tw}")
-        return {"ok": True, "skipped": "not an incoming message"}
 
+def _handle(body: dict) -> None:
     id_message = body.get("idMessage", "")
     if database.already_processed(id_message):
         print(f"[webhook] skip: duplicate {id_message}")
-        return {"ok": True, "skipped": "duplicate"}
+        return
 
     sender_data = body.get("senderData") or body.get("sender_data") or {}
     chat_id = sender_data.get("chatId", "")
@@ -122,13 +124,13 @@ async def webhook(request: Request):
     if is_group:
         if chat_id not in _ALLOWED_GROUPS:
             database.mark_processed(id_message)
-            return {"ok": True, "skipped": "group not allowed"}
+            return
         context = "group"
     else:
         if sender not in _WHITELIST:
             print(f"[webhook] skip: {sender} not in whitelist")
             database.mark_processed(id_message)
-            return {"ok": True, "skipped": "not whitelisted"}
+            return
         context = "private"
 
     sender_name = sender_data.get("senderName") or sender_data.get("chatName") or ""
@@ -153,12 +155,12 @@ async def webhook(request: Request):
                 print(f"[webhook] audio-doc transcription failed: {e}")
             if transcribed == "__TOO_LARGE__":
                 send_reply(chat_id, "הקובץ ארוך מדי לתמלול בבת אחת (מעל ~24MB). שלח קצר יותר או קישור יוטיוב.")
-                return {"ok": True, "handled": "audio-too-large"}
+                return
             if transcribed:
                 text = f"[תמלול אודיו: {fname}]\n{transcribed}\n\n{caption}".strip()
             else:
                 send_reply(chat_id, f"קיבלתי את '{fname}' אבל לא הצלחתי לתמלל אותו.")
-                return {"ok": True, "handled": "audio-doc-failed"}
+                return
         elif url:
             try:
                 import documents
@@ -175,7 +177,7 @@ async def webhook(request: Request):
                     f"קיבלתי את הקובץ '{fname}' אבל לא הצלחתי לקרוא אותו מלך. "
                     "אני יודע לקרוא PDF, Excel, Word, CSV וטקסט.",
                 )
-                return {"ok": True, "handled": "document-unreadable"}
+                return
 
     if images:
         caption = message_data.get("fileMessageData", {}).get("caption", "")
@@ -189,7 +191,7 @@ async def webhook(request: Request):
             reply = "סליחה מלך, נתקלתי בתקלה בניתוח התמונה. תנסה שוב 👑"
         send_reply(chat_id, reply)
         database.mark_processed(id_message)
-        return {"ok": True, "handled": "image"}
+        return
 
     if not text:
         audio = _extract_audio_url(message_data)
@@ -208,12 +210,12 @@ async def webhook(request: Request):
                     "קיבלתי הודעה קולית אבל לא הצלחתי לתמלל אותה מלך. תשלח שוב או תכתוב לי?",
                 )
                 database.mark_processed(id_message)
-                return {"ok": True, "handled": "audio-untranscribed"}
+                return
 
     if not text:
         print(f"[webhook] skip: unsupported type {message_data.get('typeMessage')}")
         database.mark_processed(id_message)
-        return {"ok": True, "skipped": f"unsupported type {message_data.get('typeMessage')}"}
+        return
 
     print(f"[webhook] handling ({context}): {text[:80]!r}")
     try:
@@ -226,4 +228,4 @@ async def webhook(request: Request):
 
     send_reply(chat_id, reply)
     database.mark_processed(id_message)
-    return {"ok": True}
+    return

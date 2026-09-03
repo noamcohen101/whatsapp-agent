@@ -176,7 +176,7 @@ def handle_message(
     reply_text = ""
     for _ in range(_MAX_TOOL_ITERS):
         resp = None
-        for attempt in range(4):
+        for attempt in range(2):
             try:
                 resp = _client.models.generate_content(
                     model=model, contents=contents, config=cfg
@@ -187,8 +187,8 @@ def handle_message(
                 retryable = any(
                     x in es for x in ("RESOURCE_EXHAUSTED", "429", "503", "UNAVAILABLE", "500")
                 )
-                if retryable and attempt < 3:
-                    _time.sleep(2 + attempt * 3)
+                if retryable and attempt == 0:
+                    _time.sleep(1.5)
                     continue
                 if "RESOURCE_EXHAUSTED" in es or "429" in es:
                     return "רגע מלך, יש עומס רגעי. תכתוב לי שוב עוד דקה 👑"
