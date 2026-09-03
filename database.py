@@ -543,15 +543,24 @@ def delete_memory(memory_id: int) -> bool:
 
 
 def already_processed(id_message: str) -> bool:
+    """Check only — does NOT mark. Call mark_processed() after the reply is sent,
+    so a crash mid-processing lets Green API's retry through."""
     if not id_message:
         return False
+    with _conn() as c, c.cursor() as cur:
+        cur.execute("SELECT 1 FROM processed_messages WHERE id_message = %s", (id_message,))
+        return cur.fetchone() is not None
+
+
+def mark_processed(id_message: str) -> None:
+    if not id_message:
+        return
     with _conn() as c, c.cursor() as cur:
         cur.execute(
             "INSERT INTO processed_messages (id_message) VALUES (%s) "
             "ON CONFLICT (id_message) DO NOTHING",
             (id_message,),
         )
-        return cur.rowcount == 0
 
 
 def append(chat_id: str, role: str, content: str) -> None:

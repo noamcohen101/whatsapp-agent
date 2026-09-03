@@ -121,11 +121,13 @@ async def webhook(request: Request):
     is_group = chat_id.endswith("@g.us")
     if is_group:
         if chat_id not in _ALLOWED_GROUPS:
+            database.mark_processed(id_message)
             return {"ok": True, "skipped": "group not allowed"}
         context = "group"
     else:
         if sender not in _WHITELIST:
             print(f"[webhook] skip: {sender} not in whitelist")
+            database.mark_processed(id_message)
             return {"ok": True, "skipped": "not whitelisted"}
         context = "private"
 
@@ -186,6 +188,7 @@ async def webhook(request: Request):
             print(f"[webhook] agent error (image): {e}")
             reply = "סליחה מלך, נתקלתי בתקלה בניתוח התמונה. תנסה שוב 👑"
         send_reply(chat_id, reply)
+        database.mark_processed(id_message)
         return {"ok": True, "handled": "image"}
 
     if not text:
@@ -204,10 +207,12 @@ async def webhook(request: Request):
                     chat_id,
                     "קיבלתי הודעה קולית אבל לא הצלחתי לתמלל אותה מלך. תשלח שוב או תכתוב לי?",
                 )
+                database.mark_processed(id_message)
                 return {"ok": True, "handled": "audio-untranscribed"}
 
     if not text:
         print(f"[webhook] skip: unsupported type {message_data.get('typeMessage')}")
+        database.mark_processed(id_message)
         return {"ok": True, "skipped": f"unsupported type {message_data.get('typeMessage')}"}
 
     print(f"[webhook] handling ({context}): {text[:80]!r}")
@@ -220,4 +225,5 @@ async def webhook(request: Request):
         reply = "סליחה מלך, נתקלתי בתקלה. תנסה שוב עוד רגע 👑"
 
     send_reply(chat_id, reply)
+    database.mark_processed(id_message)
     return {"ok": True}
