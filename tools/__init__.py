@@ -32,6 +32,11 @@ from tools.projects import TOOLS as _project_tools
 
 _register(_project_tools)
 
+# --- Idea vault + build progress log (always on) ---
+from tools.ideas import TOOLS as _idea_tools
+
+_register(_idea_tools)
+
 # --- Audit trail + decision journal (always on) ---
 from tools.journal import TOOLS as _journal_tools
 

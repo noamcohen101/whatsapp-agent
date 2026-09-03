@@ -146,6 +146,19 @@ def init_db() -> None:
         )
         cur.execute(
             """
+            CREATE TABLE IF NOT EXISTS ideas (
+                id          BIGSERIAL PRIMARY KEY,
+                idea        TEXT NOT NULL,
+                category    TEXT DEFAULT 'general',
+                notes       TEXT DEFAULT '',
+                status      TEXT DEFAULT 'open',
+                last_seen   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+            """
+        )
+        cur.execute(
+            """
             CREATE TABLE IF NOT EXISTS tasks (
                 id           BIGSERIAL PRIMARY KEY,
                 title        TEXT NOT NULL,
@@ -374,6 +387,66 @@ def project_add_log(name: str, note: str) -> bool:
             "INSERT INTO project_log (project_id, note) VALUES (%s, %s)", (pid, note)
         )
     return True
+
+
+def idea_add(idea: str, category: str = "general", notes: str = "") -> str:
+    with _conn() as c, c.cursor() as cur:
+        cur.execute(
+            "INSERT INTO ideas (idea, category, notes) VALUES (%s,%s,%s) RETURNING id",
+            (idea, category, notes),
+        )
+        return str(cur.fetchone()[0])
+
+
+def idea_list(status: str = "open") -> list[dict]:
+    q = "SELECT * FROM ideas"
+    params: list = []
+    if status and status != "all":
+        q += " WHERE status = %s"
+        params.append(status)
+    q += " ORDER BY id DESC LIMIT 60"
+    with _conn() as c, c.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+        cur.execute(q, params)
+        return [dict(r) for r in cur.fetchall()]
+
+
+def idea_update(idea_id: int, **fields) -> bool:
+    allowed = {"status", "notes", "category"}
+    sets = {k: v for k, v in fields.items() if k in allowed and v}
+    if not sets:
+        return False
+    cols = ", ".join(f"{k} = %s" for k in sets)
+    with _conn() as c, c.cursor() as cur:
+        cur.execute(f"UPDATE ideas SET {cols} WHERE id = %s", [*sets.values(), idea_id])
+        return cur.rowcount > 0
+
+
+def ideas_to_resurface(days: int = 14, limit: int = 3) -> list[dict]:
+    with _conn() as c, c.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+        cur.execute(
+            "SELECT * FROM ideas WHERE status = 'open' "
+            "AND last_seen < NOW() - (%s || ' days')::interval "
+            "ORDER BY last_seen ASC LIMIT %s",
+            (days, limit),
+        )
+        rows = [dict(r) for r in cur.fetchall()]
+        if rows:
+            cur.execute(
+                "UPDATE ideas SET last_seen = NOW() WHERE id = ANY(%s)",
+                ([r["id"] for r in rows],),
+            )
+        return rows
+
+
+def project_log_since(days: int) -> list[dict]:
+    with _conn() as c, c.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+        cur.execute(
+            "SELECT p.name, l.note, l.created_at FROM project_log l "
+            "JOIN projects p ON p.id = l.project_id "
+            "WHERE l.created_at > NOW() - (%s || ' days')::interval ORDER BY l.id",
+            (days,),
+        )
+        return [dict(r) for r in cur.fetchall()]
 
 
 def audit_log(action: str, detail: str = "", context: str = "private", actor: str = "bot") -> None:

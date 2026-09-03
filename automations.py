@@ -110,6 +110,15 @@ def trust_report() -> None:
     send_to_phone(BOT_OWNER_PHONE, f"🤝 *דוח אמון שבועי*\n\n{text}")
 
 
+def build_progress() -> None:
+    text = _ask_agent(
+        "[אוטומציה — התקדמות בנייה] הרץ progress_summary(7) + list_projects. "
+        "סכם לי: מה קידמתי השבוע בפרויקטים, מה נשלח/הושלם, על מה נתקעתי (במיוחד אם פעמיים), "
+        "ומה הפרויקט שלא זז ואולי צריך תשומת לב או להיסגר. " + _FMT
+    )
+    send_to_phone(BOT_OWNER_PHONE, f"🛠️ *התקדמות בנייה — השבוע*\n\n{text}")
+
+
 def weekly_review() -> None:
     text = _ask_agent(
         "[אוטומציה — סקירה שבועית] סכם לי את השבוע: מה נסגר, קצב הכנסות מול יעד (revenue_pace), "
@@ -330,6 +339,12 @@ def register(scheduler) -> None:
         trust_report,
         CronTrigger(day_of_week="sat", hour=20, minute=0, timezone=BOT_TIMEZONE),
         id="trust_report", replace_existing=True, misfire_grace_time=7200,
+    )
+    # build progress — Friday evening
+    scheduler.add_job(
+        build_progress,
+        CronTrigger(day_of_week="fri", hour=19, minute=0, timezone=BOT_TIMEZONE),
+        id="build_progress", replace_existing=True, misfire_grace_time=7200,
     )
     # trend-jacking — 3x/day
     scheduler.add_job(
