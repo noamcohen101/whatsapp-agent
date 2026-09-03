@@ -39,6 +39,7 @@ def operating_cycle(slot: str = "midday") -> None:
 פורמט וואטסאפ, *מודגש* עם כוכביות, בלי ## . עד 12 שורות."""
 
     reply = agent.handle_message(
-        f"{BOT_OWNER_PHONE}@c.us", BOT_OWNER_PHONE, instruction, context="private"
+        f"{BOT_OWNER_PHONE}@c.us", BOT_OWNER_PHONE, instruction,
+        context="private", cheap_model=True,
     )
     send_to_phone(BOT_OWNER_PHONE, f"*דיווח תפעול — {when}*\n\n{reply}")

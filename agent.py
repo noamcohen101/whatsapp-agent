@@ -3,7 +3,7 @@ from google import genai
 from google.genai import types
 
 import database
-from config import GEMINI_API_KEY, LLM_MODEL, LLM_VISION_MODEL, SPEC
+from config import GEMINI_API_KEY, LLM_CHEAP_MODEL, LLM_MODEL, LLM_VISION_MODEL, SPEC
 from prompt import build_system_prompt
 from tools import TOOL_REGISTRY
 
@@ -144,7 +144,12 @@ def handle_message(
     user_parts.append(types.Part(text=message_text or "מה יש בתמונה?"))
     contents.append(types.Content(role="user", parts=user_parts))
 
-    model = LLM_VISION_MODEL if images else LLM_MODEL
+    if images:
+        model = LLM_VISION_MODEL
+    elif cheap_model:
+        model = LLM_CHEAP_MODEL
+    else:
+        model = LLM_MODEL
     _no_block = [
         types.SafetySetting(category=c, threshold="BLOCK_NONE")
         for c in (

@@ -12,8 +12,8 @@ from tools.whatsapp import send_to_phone
 _OWNER_CHAT = f"{BOT_OWNER_PHONE}@c.us"
 
 
-def _ask_agent(instruction: str, cheap: bool = False) -> str:
-    # imported lazily to avoid a circular import at module load
+def _ask_agent(instruction: str, cheap: bool = True) -> str:
+    # All automations default to the cheaper/higher-quota model.
     import agent
 
     return agent.handle_message(
@@ -290,12 +290,15 @@ def register(scheduler) -> None:
             scheduler.remove_job(old)
         except Exception:  # noqa: BLE001
             pass
-    for slot, hh in (("morning", 9), ("evening", 21)):
-        scheduler.add_job(
-            operating_cycle, CronTrigger(hour=hh, minute=30, timezone=BOT_TIMEZONE),
-            id=f"operating_cycle_{slot}", args=[slot],
-            replace_existing=True, misfire_grace_time=3600,
-        )
+    try:
+        scheduler.remove_job("operating_cycle_evening")
+    except Exception:  # noqa: BLE001
+        pass
+    scheduler.add_job(
+        operating_cycle, CronTrigger(hour=9, minute=30, timezone=BOT_TIMEZONE),
+        id="operating_cycle_morning", args=["morning"],
+        replace_existing=True, misfire_grace_time=3600,
+    )
 
     # abandoned cart sweep — once a day
     scheduler.add_job(
