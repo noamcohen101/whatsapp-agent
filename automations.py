@@ -272,8 +272,32 @@ def abandoned_carts_check() -> None:
     send_to_phone(BOT_OWNER_PHONE, f"🛒 *עגלות נטושות*\n\n{text}")
 
 
+_ALL_JOB_IDS = [
+    "operating_cycle_morning", "operating_cycle_midday", "operating_cycle_evening",
+    "morning_brief", "business_health", "evening_summary", "inbox_watch", "follow_up_sweep",
+    "abandoned_carts", "failed_payments", "kit_radar", "competitor_prices",
+    "shipment_updates", "weekly_review", "growth_move", "trend_jack", "content_calendar",
+    "cost_report", "reputation_scan", "meeting_prep", "subscription_review",
+    "trust_report", "build_progress",
+]
+
+
 def register(scheduler) -> None:
-    """Add the recurring automation jobs (idempotent — replace_existing)."""
+    """Register automation jobs — ONLY if setting automations_enabled == 'yes'.
+    Default OFF (Noam's request: high message volume, control cost)."""
+    import database
+
+    # Always clear any previously-scheduled jobs first.
+    for jid in _ALL_JOB_IDS:
+        try:
+            scheduler.remove_job(jid)
+        except Exception:  # noqa: BLE001
+            pass
+
+    if database.setting_get("automations_enabled", "no") != "yes":
+        print("[automations] disabled (automations_enabled != 'yes') — no jobs scheduled")
+        return
+
     from op_cycle import operating_cycle
 
     # Retired jobs — folded into the autonomous operating cycle.
