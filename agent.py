@@ -145,17 +145,32 @@ def handle_message(
     contents.append(types.Content(role="user", parts=user_parts))
 
     model = LLM_VISION_MODEL if images else LLM_MODEL
+    _no_block = [
+        types.SafetySetting(category=c, threshold="BLOCK_NONE")
+        for c in (
+            "HARM_CATEGORY_HARASSMENT", "HARM_CATEGORY_HATE_SPEECH",
+            "HARM_CATEGORY_SEXUALLY_EXPLICIT", "HARM_CATEGORY_DANGEROUS_CONTENT",
+        )
+    ]
     cfg = types.GenerateContentConfig(
         system_instruction=system_prompt,
         tools=_gemini_tools(registry),
         temperature=0.7,
         max_output_tokens=2500,
+        safety_settings=_no_block,
         automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
     )
 
     reply_text = ""
     for _ in range(_MAX_TOOL_ITERS):
-        resp = _client.models.generate_content(model=model, contents=contents, config=cfg)
+        try:
+            resp = _client.models.generate_content(model=model, contents=contents, config=cfg)
+        except Exception as e:  # noqa: BLE001
+            es = str(e)
+            if "RESOURCE_EXHAUSTED" in es or "429" in es:
+                return "רגע מלך, יש עומס על המערכת (מכסה יומית). נסה שוב עוד כמה דקות 👑"
+            print(f"[agent] Gemini error: {es[:300]}")
+            return "סליחה מלך, נתקלתי בתקלה. תנסה שוב עוד רגע 👑"
         try:
             u = resp.usage_metadata
             database.usage_log(model, u.prompt_token_count or 0, u.candidates_token_count or 0)

@@ -284,8 +284,13 @@ def register(scheduler) -> None:
         except Exception:  # noqa: BLE001
             pass
 
-    # --- The autonomous operating cycle: 3x/day ---
-    for slot, hh in (("morning", 9), ("midday", 14), ("evening", 21)):
+    # --- The autonomous operating cycle: morning + evening (free-tier friendly) ---
+    for old in ("operating_cycle_midday",):
+        try:
+            scheduler.remove_job(old)
+        except Exception:  # noqa: BLE001
+            pass
+    for slot, hh in (("morning", 9), ("evening", 21)):
         scheduler.add_job(
             operating_cycle, CronTrigger(hour=hh, minute=30, timezone=BOT_TIMEZONE),
             id=f"operating_cycle_{slot}", args=[slot],
@@ -298,16 +303,16 @@ def register(scheduler) -> None:
         CronTrigger(hour=18, minute=0, timezone=BOT_TIMEZONE),
         id="abandoned_carts", replace_existing=True, misfire_grace_time=3600,
     )
-    # failed payment check — twice a day
+    # failed payment check — once a day
     scheduler.add_job(
         failed_payment_check,
-        CronTrigger(hour="13,20", minute=0, timezone=BOT_TIMEZONE),
+        CronTrigger(hour=20, minute=0, timezone=BOT_TIMEZONE),
         id="failed_payments", replace_existing=True, misfire_grace_time=3600,
     )
-    # new kit radar — twice a week
+    # new kit radar — once a week
     scheduler.add_job(
         kit_radar,
-        CronTrigger(day_of_week="mon,thu", hour=12, minute=0, timezone=BOT_TIMEZONE),
+        CronTrigger(day_of_week="mon", hour=12, minute=0, timezone=BOT_TIMEZONE),
         id="kit_radar", replace_existing=True, misfire_grace_time=7200,
     )
     # competitor price watch — once a week (Sunday)
@@ -346,10 +351,10 @@ def register(scheduler) -> None:
         CronTrigger(day_of_week="fri", hour=19, minute=0, timezone=BOT_TIMEZONE),
         id="build_progress", replace_existing=True, misfire_grace_time=7200,
     )
-    # trend-jacking — 3x/day
+    # trend-jacking — once a day
     scheduler.add_job(
         trend_jack,
-        CronTrigger(hour="9,14,20", minute=40, timezone=BOT_TIMEZONE),
+        CronTrigger(hour=15, minute=40, timezone=BOT_TIMEZONE),
         id="trend_jack", replace_existing=True, misfire_grace_time=1800,
     )
     # content calendar — Sunday morning
