@@ -25,10 +25,10 @@ GREEN_API_TOKEN = _require("GREEN_API_TOKEN")
 
 # --- LLM ---
 LLM_PROVIDER = os.getenv("LLM_PROVIDER", "gemini")
-LLM_MODEL = os.getenv("LLM_MODEL", "gemini-3.6-flash")
-LLM_VISION_MODEL = os.getenv("LLM_VISION_MODEL", "gemini-3.6-flash")
+LLM_MODEL = os.getenv("LLM_MODEL", "gemini-3.5-flash")
+LLM_VISION_MODEL = os.getenv("LLM_VISION_MODEL", "gemini-3.5-flash")
 # Cheaper/higher-free-quota model for automations and background scans.
-LLM_CHEAP_MODEL = os.getenv("LLM_CHEAP_MODEL", "gemini-flash-lite-latest")
+LLM_CHEAP_MODEL = os.getenv("LLM_CHEAP_MODEL", "gemini-3.5-flash-lite")
 GEMINI_API_KEY = _require("GEMINI_API_KEY")
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 
