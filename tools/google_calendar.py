@@ -64,13 +64,33 @@ def list_events(time_min_iso: str = "", time_max_iso: str = "") -> str:
     return "\n".join(_fmt(e) for e in items)
 
 
+def _is_date_only(s: str) -> bool:
+    return len(s.strip()) == 10 and s.strip()[4] == "-" and "T" not in s
+
+
 def create_event(
     summary: str, start_iso: str, end_iso: str = "", attendees: str = ""
 ) -> str:
+    # All-day / multi-day event when only a date is given (e.g. a trip).
+    if _is_date_only(start_iso):
+        sd = datetime.fromisoformat(start_iso).date()
+        if end_iso and _is_date_only(end_iso):
+            ed = datetime.fromisoformat(end_iso).date()
+        else:
+            ed = sd
+        # Google's all-day end date is exclusive — add one day so the last day is included.
+        body = {
+            "summary": summary,
+            "start": {"date": sd.isoformat()},
+            "end": {"date": (ed + timedelta(days=1)).isoformat()},
+        }
+        ev = _service().events().insert(calendarId="primary", body=body).execute()
+        return f"נקבע (יום שלם): {summary} {sd.strftime('%d/%m')}–{ed.strftime('%d/%m')} (id: {ev['id'][:12]})"
+
     start = datetime.fromisoformat(start_iso)
     if start.tzinfo is None:
         start = start.replace(tzinfo=_TZ)
-    end = datetime.fromisoformat(end_iso) if end_iso else start + timedelta(hours=1)
+    end = datetime.fromisoformat(end_iso) if end_iso and not _is_date_only(end_iso) else start + timedelta(hours=1)
     if end.tzinfo is None:
         end = end.replace(tzinfo=_TZ)
     body = {
@@ -132,13 +152,13 @@ TOOLS = {
     "create_calendar_event": {
         "schema": {
             "name": "create_calendar_event",
-            "description": "קובע אירוע חדש ביומן. דורש אישור מפורש מנועם לפני קריאה (הצג לו טיוטה קודם).",
+            "description": "קובע אירוע חדש ביומן. להזזת אירוע קיים אל תשתמש בזה — השתמש ב-update_calendar_event. אל תיצור פעמיים.",
             "input_schema": {
                 "type": "object",
                 "properties": {
                     "summary": {"type": "string", "description": "כותרת האירוע"},
-                    "start_iso": {"type": "string", "description": "התחלה ISO 8601 מקומי"},
-                    "end_iso": {"type": "string", "description": "סיום ISO 8601, אופציונלי (ברירת מחדל שעה)"},
+                    "start_iso": {"type": "string", "description": "התחלה. עם שעה: ISO מלא 2026-09-22T11:00:00. ליום שלם / טיול: רק תאריך 2026-09-22"},
+                    "end_iso": {"type": "string", "description": "סיום. ליום שלם רב-ימי: תאריך היום האחרון בפועל (כולל). אופציונלי"},
                     "attendees": {"type": "string", "description": "מיילים מופרדים בפסיק, אופציונלי"},
                 },
                 "required": ["summary", "start_iso"],
