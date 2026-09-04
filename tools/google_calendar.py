@@ -34,7 +34,7 @@ def _fmt(ev: dict) -> str:
     except ValueError:
         pass
     title = ev.get("summary", "(ללא כותרת)")
-    return f"- {when} — {title} (id: {ev['id'][:12]})"
+    return f"- {when} — {title} (id: {ev['id']})"
 
 
 def list_events(time_min_iso: str = "", time_max_iso: str = "") -> str:
@@ -85,7 +85,7 @@ def create_event(
             "end": {"date": (ed + timedelta(days=1)).isoformat()},
         }
         ev = _service().events().insert(calendarId="primary", body=body).execute()
-        return f"נקבע (יום שלם): {summary} {sd.strftime('%d/%m')}–{ed.strftime('%d/%m')} (id: {ev['id'][:12]})"
+        return f"נקבע (יום שלם): {summary} {sd.strftime('%d/%m')}–{ed.strftime('%d/%m')} (id: {ev['id']})"
 
     start = datetime.fromisoformat(start_iso)
     if start.tzinfo is None:
@@ -101,7 +101,7 @@ def create_event(
     if attendees:
         body["attendees"] = [{"email": a.strip()} for a in attendees.split(",") if a.strip()]
     ev = _service().events().insert(calendarId="primary", body=body).execute()
-    return f"נקבע: {summary} ב-{start.strftime('%d/%m %H:%M')} (id: {ev['id'][:12]})"
+    return f"נקבע: {summary} ב-{start.strftime('%d/%m %H:%M')} (id: {ev['id']})"
 
 
 def update_event(
@@ -125,7 +125,7 @@ def update_event(
             e = e.replace(tzinfo=_TZ)
         ev["end"] = {"dateTime": e.isoformat(), "timeZone": BOT_TIMEZONE}
     out = svc.events().update(calendarId="primary", eventId=event_id, body=ev).execute()
-    return f"עודכן: {out.get('summary')} (id: {out['id'][:12]})"
+    return f"עודכן: {out.get('summary')} (id: {out['id']})"
 
 
 def delete_event(event_id: str) -> str:
