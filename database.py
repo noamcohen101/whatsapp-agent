@@ -195,6 +195,41 @@ def init_db() -> None:
             """
         )
 
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS personal_expenses (
+                id         BIGSERIAL PRIMARY KEY,
+                amount     NUMERIC NOT NULL,
+                category   TEXT DEFAULT 'כללי',
+                note       TEXT DEFAULT '',
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+            """
+        )
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS savings_goals (
+                id            BIGSERIAL PRIMARY KEY,
+                name          TEXT NOT NULL,
+                target_amount NUMERIC NOT NULL,
+                target_date   TEXT DEFAULT '',
+                active        BOOLEAN DEFAULT TRUE,
+                created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+            """
+        )
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS savings_log (
+                id         BIGSERIAL PRIMARY KEY,
+                goal_id    BIGINT NOT NULL,
+                amount     NUMERIC NOT NULL,
+                note       TEXT DEFAULT '',
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+            """
+        )
+
 
 def add_shipment(order_id, tracking_number, carrier, name, phone) -> str:
     with _conn() as c, c.cursor() as cur:
@@ -221,6 +256,57 @@ def update_shipment_status(shipment_id: int, status: str, deactivate: bool = Fal
             "UPDATE shipments SET last_status=%s, active=%s, updated_at=NOW() WHERE id=%s",
             (status, not deactivate, shipment_id),
         )
+
+
+def expense_add(amount: float, category: str = "כללי", note: str = "") -> str:
+    with _conn() as c, c.cursor() as cur:
+        cur.execute(
+            "INSERT INTO personal_expenses (amount, category, note) VALUES (%s,%s,%s) RETURNING id",
+            (amount, category, note),
+        )
+        return str(cur.fetchone()[0])
+
+
+def expense_list(since_days: int = 30) -> list[dict]:
+    with _conn() as c, c.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+        cur.execute(
+            "SELECT * FROM personal_expenses WHERE created_at >= NOW() - (%s || ' days')::INTERVAL "
+            "ORDER BY created_at DESC",
+            (since_days,),
+        )
+        return [dict(r) for r in cur.fetchall()]
+
+
+def savings_goal_set(name: str, target_amount: float, target_date: str = "") -> str:
+    with _conn() as c, c.cursor() as cur:
+        cur.execute("UPDATE savings_goals SET active=FALSE WHERE active")
+        cur.execute(
+            "INSERT INTO savings_goals (name, target_amount, target_date) VALUES (%s,%s,%s) RETURNING id",
+            (name, target_amount, target_date),
+        )
+        return str(cur.fetchone()[0])
+
+
+def savings_goal_active() -> dict | None:
+    with _conn() as c, c.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+        cur.execute("SELECT * FROM savings_goals WHERE active ORDER BY id DESC LIMIT 1")
+        row = cur.fetchone()
+        return dict(row) if row else None
+
+
+def savings_log_add(goal_id: int, amount: float, note: str = "") -> str:
+    with _conn() as c, c.cursor() as cur:
+        cur.execute(
+            "INSERT INTO savings_log (goal_id, amount, note) VALUES (%s,%s,%s) RETURNING id",
+            (goal_id, amount, note),
+        )
+        return str(cur.fetchone()[0])
+
+
+def savings_log_total(goal_id: int) -> float:
+    with _conn() as c, c.cursor() as cur:
+        cur.execute("SELECT COALESCE(SUM(amount),0) FROM savings_log WHERE goal_id=%s", (goal_id,))
+        return float(cur.fetchone()[0])
 
 
 def task_add(title, domain="general", priority="normal", due="", next_action="",

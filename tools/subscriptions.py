@@ -5,6 +5,7 @@ _QUERIES = [
     'subject:(receipt OR invoice OR "payment" OR subscription OR renew) newer_than:120d',
     'subject:(קבלה OR חשבונית OR חיוב OR מנוי OR חידוש) newer_than:120d',
     'from:(paypal.com OR stripe.com OR paddle.com) newer_than:120d',
+    'subject:(netflix OR spotify OR icloud OR "google one" OR "חדר כושר" OR gym) newer_than:120d',
 ]
 
 
@@ -28,8 +29,9 @@ TOOLS = {
         "schema": {
             "name": "scan_subscriptions",
             "description": (
-                "סורק את ה-Gmail אחרי חיובים חוזרים ומנויים (קבלות, חשבוניות, PayPal/Stripe). "
-                "השתמש כשנועם שואל על מנויים / חיובים / 'על מה אני משלם'."
+                "סורק את ה-Gmail אחרי חיובים חוזרים ומנויים — גם אישיים (Netflix, חדר כושר, אפליקציות) "
+                "וגם עסקיים (קבלות, חשבוניות, PayPal/Stripe). "
+                "השתמש כשנועם שואל על מנויים / חיובים / 'על מה אני משלם' / 'לצוד לי מנויים שסורקים כסף'."
             ),
             "input_schema": {"type": "object", "properties": {}, "required": []},
         },

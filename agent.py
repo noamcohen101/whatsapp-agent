@@ -137,6 +137,12 @@ def handle_message(
         appr = database.approval_list()
         if appr:
             settings["_standing_approvals"] = "\n".join(f"- {a['rule']}" for a in appr)
+        goal = database.savings_goal_active()
+        if goal:
+            saved = database.savings_log_total(goal["id"])
+            settings["_savings_goal"] = (
+                f"{goal['name']} — נחסך {saved:,.0f} מתוך {float(goal['target_amount']):,.0f}"
+            )
         dyn = dynamic_block(
             database.all_memories(),
             database.task_list("open"),

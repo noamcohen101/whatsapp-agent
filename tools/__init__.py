@@ -111,6 +111,11 @@ if "gmail" in SPEC.get("tools", []):
 
     _register(_sub_tools)
 
+# --- Personal money: expenses + savings goal (always on, not business) ---
+from tools.personal_finance import TOOLS as _personal_finance_tools
+
+_register(_personal_finance_tools)
+
 # --- LLM cost report (always on) ---
 from tools.cost import TOOLS as _cost_tools
 
