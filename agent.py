@@ -16,6 +16,8 @@ from tools import TOOL_REGISTRY
 
 _client = genai.Client(api_key=GEMINI_API_KEY)
 _MAX_TOOL_ITERS = 6
+# Used only when the primary (lite) model returns transient 503s under load.
+_FALLBACK_MODEL = "gemini-3.5-flash"
 
 # Per-group tool policies. 'general' groups get web/knowledge only; 'business'
 # groups also get Israstore read tools. Never personal data / write actions.
@@ -190,21 +192,32 @@ def handle_message(
     reply_text = ""
     for _ in range(_MAX_TOOL_ITERS):
         resp = None
-        for attempt in range(2):
+        # Google returns transient 503/UNAVAILABLE on the lite model under load.
+        # Retry a few times with backoff, then fall back to the fuller model once.
+        _delays = [1.5, 3, 5]
+        _tried_fallback = False
+        _m = model
+        attempt = 0
+        while True:
             try:
                 resp = _client.models.generate_content(
-                    model=model, contents=contents, config=cfg
+                    model=_m, contents=contents, config=cfg
                 )
                 break
             except Exception as e:  # noqa: BLE001
                 es = str(e)
-                retryable = any(
-                    x in es for x in ("RESOURCE_EXHAUSTED", "429", "503", "UNAVAILABLE", "500")
-                )
-                if retryable and attempt == 0:
-                    _time.sleep(1.5)
+                overloaded = any(x in es for x in ("503", "UNAVAILABLE", "500"))
+                quota = "RESOURCE_EXHAUSTED" in es or "429" in es
+                if (overloaded or quota) and attempt < len(_delays):
+                    _time.sleep(_delays[attempt])
+                    attempt += 1
                     continue
-                if "RESOURCE_EXHAUSTED" in es or "429" in es:
+                if overloaded and not _tried_fallback and _m != _FALLBACK_MODEL:
+                    _tried_fallback = True
+                    _m = _FALLBACK_MODEL
+                    attempt = 0
+                    continue
+                if quota:
                     return "רגע מלך, יש עומס רגעי. תכתוב לי שוב עוד דקה 👑"
                 print(f"[agent] Gemini error: {es[:300]}")
                 return "סליחה מלך, נתקלתי בתקלה. תנסה שוב עוד רגע 👑"
