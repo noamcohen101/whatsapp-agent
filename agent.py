@@ -3,7 +3,14 @@ from google import genai
 from google.genai import types
 
 import database
-from config import GEMINI_API_KEY, LLM_CHEAP_MODEL, LLM_MODEL, LLM_VISION_MODEL, SPEC
+from config import (
+    BOT_OWNER_PHONE,
+    GEMINI_API_KEY,
+    LLM_CHEAP_MODEL,
+    LLM_MODEL,
+    LLM_VISION_MODEL,
+    SPEC,
+)
 from prompt import dynamic_block, static_prompt
 from tools import TOOL_REGISTRY
 
@@ -46,10 +53,17 @@ _READ_ONLY_SAFE = {
 }
 
 
-def _active_tools(context: str, chat_id: str = "") -> dict:
+# Extra tools the OWNER (Noam) may use even from inside a group. Kept tiny on
+# purpose: only adding an event, never reading the calendar aloud in a group.
+_GROUP_TOOLS_OWNER = {"create_calendar_event"}
+
+
+def _active_tools(context: str, chat_id: str = "", sender_phone: str = "") -> dict:
     if context == "group":
         policy = _GROUP_POLICY.get(chat_id, "general")
         allowed = _GROUP_TOOLS_BUSINESS if policy == "business" else _GROUP_TOOLS_GENERAL
+        if sender_phone and sender_phone == BOT_OWNER_PHONE:
+            allowed = allowed | _GROUP_TOOLS_OWNER
         return {k: v for k, v in TOOL_REGISTRY.items() if k in allowed}
     return TOOL_REGISTRY
 
@@ -111,7 +125,7 @@ def handle_message(
     chat_id, sender_phone, message_text,
     images=None, context="private", sender_name="", cheap_model=False,
 ) -> str:
-    registry = _active_tools(context, chat_id)
+    registry = _active_tools(context, chat_id, sender_phone)
     group_info = _GROUP_INFO.get(chat_id) if context == "group" else None
     system_prompt = static_prompt(SPEC, context, group_info)
 
